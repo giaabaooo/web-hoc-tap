@@ -1,0 +1,25 @@
+# Logs
+logs
+*.log
+npm-debug.log*
+
+# Runtime data
+pids
+*.pid
+*.seed
+*.pid.lock
+
+# Dependency directories
+node_modules/
+
+# Optional npm cache directory
+.npm
+
+# Env files (QUAN TRỌNG NHẤT)
+.env
+.env.test
+.env.production
+.env.local
+
+# Mac OS
+.DS_Store
