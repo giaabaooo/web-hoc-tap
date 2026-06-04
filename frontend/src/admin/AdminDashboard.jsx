@@ -38,15 +38,16 @@ export const AdminDashboard = () => {
     const token = localStorage.getItem('token');
     return { headers: { Authorization: `Bearer ${token}` } };
   };
+  const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
  const fetchDashboardData = async () => {
     setIsLoading(true);
     try {
       // Gọi cả 3 API cùng lúc cho tối ưu tốc độ
       const [teachersRes, pendingRes, usersRes] = await Promise.all([
-        axios.get('http://localhost:5000/api/auth/teachers', getAuthHeaders()),
-        axios.get('http://localhost:5000/api/auth/pending-teachers', getAuthHeaders()),
-        axios.get('http://localhost:5000/api/auth/users', getAuthHeaders()) // <-- Đã thêm API lấy users
+        axios.get(`${API_URL}/api/auth/teachers`, getAuthHeaders()),
+        axios.get(`${API_URL}/api/auth/pending-teachers`, getAuthHeaders()),
+        axios.get(`${API_URL}/api/auth/users`, getAuthHeaders()) // <-- Đã thêm API lấy users
       ]);
 
       const allTeachers = teachersRes.data || [];
@@ -81,7 +82,7 @@ export const AdminDashboard = () => {
 
   const handleApproveTeacher = async (id, name) => {
     try {
-      await axios.put(`http://localhost:5000/api/auth/approve-teacher/${id}`, {}, getAuthHeaders());
+      await axios.put(`${API_URL}/api/auth/approve-teacher/${id}`, {}, getAuthHeaders());
       toast.success(`🎉 Đã duyệt quyền giảng dạy cho giáo viên ${name}!`);
       fetchDashboardData();
     } catch (error) {
@@ -91,7 +92,7 @@ export const AdminDashboard = () => {
 
   const handleToggleStatus = async (id, currentStatus, role) => {
     try {
-      await axios.put(`http://localhost:5000/api/auth/toggle-status/${id}`, { isActive: !currentStatus }, getAuthHeaders());
+      await axios.put(`${API_URL}/api/auth/toggle-status/${id}`, { isActive: !currentStatus }, getAuthHeaders());
       toast.success(`${currentStatus ? '🔒 Đã khóa' : '🔓 Đã kích hoạt'} tài khoản thành công!`);
       fetchDashboardData();
     } catch (error) {

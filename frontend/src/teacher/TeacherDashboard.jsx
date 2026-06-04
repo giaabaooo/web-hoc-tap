@@ -16,9 +16,8 @@ export const TeacherDashboard = () => {
   useEffect(() => {
     const fetchMyCourses = async () => {
       try {
-        const res = await axios.get('http://localhost:5000/api/courses');
-        // Tạm thời lấy tất cả khóa học. 
-        // Nếu backend đã hỗ trợ lọc theo teacher ID, bạn có thể lọc ở đây: res.data.filter(c => c.teacher === user?._id)
+        const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+        const res = await axios.get(`${API_URL}/api/courses`);
         setCourses(res.data); 
       } catch (error) {
         console.error(error);

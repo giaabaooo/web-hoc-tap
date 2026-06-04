@@ -22,18 +22,20 @@ export const TeacherLayout = () => {
   ];
 
   return (
-    <div className="min-h-screen flex bg-surface-strong text-text-primary font-primary">
-      {/* Sidebar Giáo Viên */}
-      <aside className="w-64 bg-surface-muted border-r border-border-default flex flex-col">
+    // Đã thay đổi: Dùng h-screen (bằng đúng chiều cao màn hình) và overflow-hidden
+    <div className="h-screen w-full flex overflow-hidden bg-surface-strong text-text-primary font-primary">
+      
+      {/* Sidebar Giáo Viên - Bọc flex-shrink-0 để không bị ép nhỏ lại */}
+      <aside className="w-64 h-full flex-shrink-0 bg-surface-muted border-r border-border-default flex flex-col relative z-10 shadow-sm">
         <div className="p-6 border-b border-border-default">
           <Link to="/" className="text-xl font-bold text-surface-raised flex items-center gap-2 outline-none focus-visible:ring-2 focus-visible:ring-surface-raised rounded">
-            Hoc10K <span className="text-xs bg-orange-100 text-orange-600 px-2 py-1 rounded-full">Teacher</span>
+            Tự Học Vui <span className="text-xs bg-orange-100 text-orange-600 px-2 py-1 rounded-full">Teacher</span>
           </Link>
         </div>
         
-        <nav className="flex-1 p-4 space-y-2">
+        {/* Nơi chứa menu, flex-1 giúp đẩy khu vực logout xuống tận cùng */}
+        <nav className="flex-1 p-4 space-y-2 overflow-y-auto custom-scrollbar">
           {menu.map((item) => {
-            // Check chính xác đường dẫn để active tab
             const isActive = location.pathname === item.path; 
             return (
               <Link
@@ -48,7 +50,8 @@ export const TeacherLayout = () => {
           })}
         </nav>
 
-        <div className="p-4 border-t border-border-default">
+        {/* Khu vực Logout được đẩy xuống cố định */}
+        <div className="p-4 border-t border-border-default mt-auto">
           <div className="flex items-center gap-3 mb-4 px-2">
             <img src={user?.avatar || "https://via.placeholder.com/40"} alt="Avatar" className="w-10 h-10 rounded-full border border-border-default" />
             <div className="overflow-hidden">
@@ -65,8 +68,8 @@ export const TeacherLayout = () => {
         </div>
       </aside>
 
-      {/* Nơi chứa nội dung khóa học, học sinh, v.v... */}
-      <main className="flex-1 p-8 overflow-y-auto">
+      {/* Main Content - Nơi chứa Outlet. Để thẻ main cuộn (overflow-y-auto) thay vì cả trang cuộn */}
+      <main className="flex-1 h-full p-8 overflow-y-auto custom-scrollbar relative">
         <Outlet /> 
       </main>
     </div>

@@ -7,14 +7,30 @@ import { useAuthStore } from '../store/useAuthStore';
 
 export const AuthPage = () => {
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
-  const login = useAuthStore((state) => state.login);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const { login, isAuthenticated, user } = useAuthStore();
+
+  // 1. CHẶN QUAY LẠI TRANG LOGIN NẾU ĐÃ ĐĂNG NHẬP
+  useEffect(() => {
+    if (isAuthenticated && user) {
+      // Dùng { replace: true } để xóa lịch sử trang auth, tránh việc người dùng bấm back liên tục
+      if (user.role === 'admin') navigate('/admin-dashboard', { replace: true });
+      else if (user.role === 'teacher') navigate('/teacher-dashboard', { replace: true });
+      else navigate('/dashboard', { replace: true });
+    }
+  }, [isAuthenticated, user, navigate]);
+
+  // 2. ĐỒNG BỘ STATE VỚI URL
+  const mode = searchParams.get('mode') === 'register' ? 'register' : 'login';
+  const role = searchParams.get('role') === 'teacher' ? 'teacher' : 'user';
+
+  const updateUrlParams = (key, value) => {
+    searchParams.set(key, value);
+    setSearchParams(searchParams);
+  };
   
   // States
   const [isLoading, setIsLoading] = useState(false);
-  const [mode, setMode] = useState(searchParams.get('mode') === 'register' ? 'register' : 'login');
-  const [role, setRole] = useState(searchParams.get('role') === 'teacher' ? 'teacher' : 'user');
-  
   const [formData, setFormData] = useState({
     displayName: '',
     email: '',
@@ -41,21 +57,21 @@ export const AuthPage = () => {
     return true;
   };
 
-    const handleSubmit = async (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     if (!validateForm()) return;
+    const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
     setIsLoading(true);
     try {
       const endpoint = mode === 'register' ? '/api/auth/register' : '/api/auth/login';
       const payload = mode === 'register' ? { ...formData, role } : { email: formData.email, password: formData.password };
       
-      const response = await axios.post(`http://localhost:5000${endpoint}`, payload);
+      const response = await axios.post(`${API_URL}${endpoint}`, payload);
       
-      // FIX: Bắt trường hợp Giáo viên vừa đăng ký thường xong, phải chờ duyệt (Tránh bị crash React)
       if (response.data.requiresApproval) {
         toast.info(response.data.message || '🕒 Đăng ký thành công! Vui lòng chờ Admin phê duyệt.');
-        return; // Thoát hàm luôn, không login hay navigate
+        return; 
       }
 
       const { token, user } = response.data;
@@ -63,9 +79,9 @@ export const AuthPage = () => {
       login(user, token);
       toast.success(mode === 'register' ? '🎉 Đăng ký thành công!' : '🎉 Chào mừng bạn đã quay lại!');
       
-      if (user.role === 'admin') navigate('/admin-dashboard');
-      else if (user.role === 'teacher') navigate('/teacher-dashboard');
-      else navigate('/dashboard');
+      if (user.role === 'admin') navigate('/admin-dashboard', { replace: true });
+      else if (user.role === 'teacher') navigate('/teacher-dashboard', { replace: true });
+      else navigate('/dashboard', { replace: true });
       
     } catch (error) {
       const errorMsg = error.response?.data?.message || 'Có lỗi xảy ra, vui lòng thử lại sau!';
@@ -75,29 +91,28 @@ export const AuthPage = () => {
     }
   };
 
- const handleGoogleSuccess = async (credentialResponse) => {
+  const handleGoogleSuccess = async (credentialResponse) => {
     setIsLoading(true);
+    const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
     try {
-      const response = await axios.post('http://localhost:5000/api/auth/google', {
+      const response = await axios.post(`${API_URL}/api/auth/google`, {
         credential: credentialResponse.credential,
         role: role
       });
 
       const { token, user, requiresApproval, message } = response.data;
 
-      // Xử lý trường hợp Giáo viên chờ duyệt (kể cả đăng ký mới hay login)
       if (requiresApproval || (user.role === 'teacher' && !user.isApproved)) {
         toast.info(message || '🕒 Tài khoản đang chờ Admin phê duyệt.');
-        return; // DỪNG LẠI, KHÔNG NAVIGATE
+        return; 
       }
 
-      // Đăng nhập thành công
       login(user, token);
       toast.success('🎉 Đăng nhập thành công!');
       
-      if (user.role === 'admin') navigate('/admin-dashboard');
-      else if (user.role === 'teacher') navigate('/teacher-dashboard');
-      else navigate('/dashboard');
+      if (user.role === 'admin') navigate('/admin-dashboard', { replace: true });
+      else if (user.role === 'teacher') navigate('/teacher-dashboard', { replace: true });
+      else navigate('/dashboard', { replace: true });
       
     } catch (error) {
       if (error.response?.status === 403) {
@@ -110,11 +125,15 @@ export const AuthPage = () => {
     }
   };
 
+  // Nếu đã đăng nhập thì return null để không nháy form login trước khi chuyển trang
+  if (isAuthenticated) return null;
+
   return (
     <div className="min-h-screen bg-surface-strong flex flex-col justify-center py-12 sm:px-6 lg:px-8">
       <div className="sm:mx-auto sm:w-full sm:max-w-md">
+        {/* 3. SỬA TÊN THƯƠNG HIỆU */}
         <h2 className="mt-6 text-center text-3xl font-extrabold text-text-primary">
-          Hoc10K 🚀
+          Tự Học Vui 🚀
         </h2>
         <p className="mt-2 text-center text-md text-text-tertiary">
           {mode === 'login' ? 'Đăng nhập vào tài khoản của bạn' : 'Tạo tài khoản mới'}
@@ -124,18 +143,18 @@ export const AuthPage = () => {
       <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
         <div className="bg-surface-muted py-8 px-4 shadow-1 sm:rounded-lg sm:px-10 border border-border-default">
           
-          {/* Chọn Role */}
+          {/* Cập nhật UI nút chọn Role gọi hàm updateUrlParams */}
           <div className="flex rounded-md p-1 bg-surface-strong mb-6 border border-border-default">
             <button
               type="button"
-              onClick={() => setRole('user')}
+              onClick={() => updateUrlParams('role', 'user')}
               className={`flex-1 py-2 text-sm font-medium rounded-md transition-colors ${role === 'user' ? 'bg-surface-raised text-surface-muted shadow' : 'text-text-tertiary hover:text-text-primary'}`}
             >
               Học sinh
             </button>
             <button
               type="button"
-              onClick={() => setRole('teacher')}
+              onClick={() => updateUrlParams('role', 'teacher')}
               className={`flex-1 py-2 text-sm font-medium rounded-md transition-colors ${role === 'teacher' ? 'bg-surface-raised text-surface-muted shadow' : 'text-text-tertiary hover:text-text-primary'}`}
             >
               Giáo viên
@@ -220,7 +239,7 @@ export const AuthPage = () => {
             <button
               type="button"
               onClick={() => {
-                setMode(mode === 'login' ? 'register' : 'login');
+                updateUrlParams('mode', mode === 'login' ? 'register' : 'login');
                 setFormData({ displayName: '', email: '', password: '' });
               }}
               className="font-medium text-surface-raised hover:text-blue-600"

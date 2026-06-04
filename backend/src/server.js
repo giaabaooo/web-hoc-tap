@@ -11,11 +11,28 @@ import { seedAdmin } from './scripts/seedAdmin.js';
 dotenv.config();
 
 const app = express();
+const allowedOrigins = [
+  'http://localhost:5173',          // Môi trường Dev của bạn
+  process.env.CLIENT_URL,           // Từ biến môi trường (nếu có)
+  'https://tuhocvui.vn',            // Thay bằng domain Frontend của bạn
+  'https://www.tuhocvui.vn'
+].filter(Boolean);
 
 app.use(cors({
-  origin: process.env.CLIENT_URL || "http://localhost:5173", // URL frontend của bạn
+  origin: function (origin, callback) {
+    if (!origin || allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error('Tên miền này không được phép truy cập API (CORS policy).'));
+    }
+  },
   credentials: true
 }));
+app.use((req, res, next) => {
+  res.setHeader('Cross-Origin-Opener-Policy', 'same-origin-allow-popups');
+  res.setHeader('Cross-Origin-Embedder-Policy', 'unsafe-none');
+  next();
+});
 app.use(express.json());
 
 // --- ĐĂNG KÝ CÁC ROUTES Ở ĐÂY ---

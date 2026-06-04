@@ -33,14 +33,14 @@ export const CreateCourse = () => {
     const { name, value } = e.target;
     setCourseInfo(prev => ({ ...prev, [name]: value }));
   };
-
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
   // Hàm upload dùng chung (Thumbnail, Video, Ảnh)
   const uploadFileToServer = async (file) => {
     const formData = new FormData();
     formData.append('file', file);
     const token = localStorage.getItem('token');
     
-    const res = await axios.post('http://localhost:5000/api/upload', formData, {
+    const res = await axios.post(`${API_URL}/api/upload`, formData, {
       headers: { 'Content-Type': 'multipart/form-data', Authorization: `Bearer ${token}` }
     });
     return res.data.secure_url;
@@ -115,7 +115,7 @@ export const CreateCourse = () => {
     try {
       const payload = { ...courseInfo, chapters };
       const token = localStorage.getItem('token');
-      await axios.post('http://localhost:5000/api/courses', payload, {
+      await axios.post(`${API_URL}/api/courses`, payload, {
         headers: { Authorization: `Bearer ${token}` }
       });
       toast.success('Xuất bản khóa học thành công!');

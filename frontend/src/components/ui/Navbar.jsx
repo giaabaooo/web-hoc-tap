@@ -14,6 +14,20 @@ export const Navbar = () => {
     navigate('/');
   };
 
+  // Hàm tự động xác định link Dashboard theo Role
+  const getDashboardRoute = () => {
+    if (user?.role === 'admin') return '/admin-dashboard';
+    if (user?.role === 'teacher') return '/teacher-dashboard';
+    return '/dashboard';
+  };
+
+  // Hàm tự động hiển thị Text theo Role
+  const getDashboardText = () => {
+    if (user?.role === 'admin') return 'Quản trị hệ thống';
+    if (user?.role === 'teacher') return 'Quản lý giảng dạy';
+    return 'Quản lý học tập';
+  };
+
   const navLinks = [
     { name: 'Trang chủ', path: '/', icon: <Home size={18} /> },
     { 
@@ -61,7 +75,7 @@ export const Navbar = () => {
                   <img src={user?.avatar || "https://via.placeholder.com/32"} alt="avatar" className="w-8 h-8 rounded-full" />
                   <span className="text-sm font-medium text-text-primary">{user?.displayName}</span>
                 </div>
-                <Link to="/dashboard" className="px-5 py-2 bg-surface-raised text-surface-muted rounded-full hover:bg-blue-600 text-sm font-medium transition-colors outline-none focus-visible:ring-2 focus-visible:ring-surface-raised shadow-1">
+                <Link to={getDashboardRoute()} className="px-5 py-2 bg-surface-raised text-surface-muted rounded-full hover:bg-blue-600 text-sm font-medium transition-colors outline-none focus-visible:ring-2 focus-visible:ring-surface-raised shadow-1 whitespace-nowrap">
                   Vào Dashboard
                 </Link>
                 <button onClick={handleLogout} className="p-2 text-text-tertiary hover:text-red-500 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-surface-raised rounded">
@@ -129,8 +143,8 @@ export const Navbar = () => {
               })}
             </ul>
             {isAuthenticated && (
-              <Link to="/dashboard" className="flex items-center gap-2 px-4 py-2 bg-surface-muted text-surface-raised rounded-full text-sm font-medium hover:bg-gray-100 outline-none focus-visible:ring-2 focus-visible:ring-white">
-                <UserIcon size={18} /> Quản lý học tập
+              <Link to={getDashboardRoute()} className="flex items-center gap-2 px-4 py-2 bg-surface-muted text-surface-raised rounded-full text-sm font-medium hover:bg-gray-100 outline-none focus-visible:ring-2 focus-visible:ring-white whitespace-nowrap">
+                <UserIcon size={18} /> {getDashboardText()}
               </Link>
             )}
           </div>

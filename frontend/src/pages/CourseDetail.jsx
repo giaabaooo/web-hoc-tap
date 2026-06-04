@@ -47,7 +47,7 @@ export const CourseDetail = () => {
   const [expandedChapters, setExpandedChapters] = useState([]); 
   const [expandedSections, setExpandedSections] = useState([]); 
   const [activeLesson, setActiveLesson] = useState(null);
-
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
   useEffect(() => {
     const fetchCourseDetail = async () => {
       try {
@@ -67,7 +67,7 @@ export const CourseDetail = () => {
         } else {
           // NẾU LÀ MONGO ID THẬT => FETCH TỪ BACKEND
           console.log("Đang fetch Data thật cho ID:", id);
-          const response = await fetch(`http://localhost:5000/api/courses/${id}`); 
+          const response = await fetch(`${API_URL}/api/courses/${id}`); 
           
           if (!response.ok) {
             throw new Error('Không thể tải thông tin khóa học');
