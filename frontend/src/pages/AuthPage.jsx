@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { GoogleLogin } from '@react-oauth/google';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams, Link } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import axios from 'axios';
 import { useAuthStore } from '../store/useAuthStore';
@@ -13,7 +13,6 @@ export const AuthPage = () => {
   // 1. CHẶN QUAY LẠI TRANG LOGIN NẾU ĐÃ ĐĂNG NHẬP
   useEffect(() => {
     if (isAuthenticated && user) {
-      // Dùng { replace: true } để xóa lịch sử trang auth, tránh việc người dùng bấm back liên tục
       if (user.role === 'admin') navigate('/admin-dashboard', { replace: true });
       else if (user.role === 'teacher') navigate('/teacher-dashboard', { replace: true });
       else navigate('/dashboard', { replace: true });
@@ -125,15 +124,21 @@ export const AuthPage = () => {
     }
   };
 
-  // Nếu đã đăng nhập thì return null để không nháy form login trước khi chuyển trang
   if (isAuthenticated) return null;
 
   return (
     <div className="min-h-screen bg-surface-strong flex flex-col justify-center py-12 sm:px-6 lg:px-8">
-      <div className="sm:mx-auto sm:w-full sm:max-w-md">
-        {/* 3. SỬA TÊN THƯƠNG HIỆU */}
-        <h2 className="mt-6 text-center text-3xl font-extrabold text-text-primary">
-          Tự Học Vui 🚀
+      <div className="sm:mx-auto sm:w-full sm:max-w-md flex flex-col items-center">
+        {/* ĐÃ THÊM LOGO VÀO ĐÂY */}
+        <Link to="/">
+          <img 
+  src="/logo.jpg" 
+  alt="Tự Học Vui Logo" 
+  className="h-28 w-auto object-contain drop-shadow-sm mb-2 hover:scale-105 transition-transform cursor-pointer mix-blend-multiply" 
+/>
+        </Link>
+        <h2 className="text-center text-3xl font-extrabold text-text-primary">
+          Tự Học Vui
         </h2>
         <p className="mt-2 text-center text-md text-text-tertiary">
           {mode === 'login' ? 'Đăng nhập vào tài khoản của bạn' : 'Tạo tài khoản mới'}
@@ -143,7 +148,6 @@ export const AuthPage = () => {
       <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
         <div className="bg-surface-muted py-8 px-4 shadow-1 sm:rounded-lg sm:px-10 border border-border-default">
           
-          {/* Cập nhật UI nút chọn Role gọi hàm updateUrlParams */}
           <div className="flex rounded-md p-1 bg-surface-strong mb-6 border border-border-default">
             <button
               type="button"

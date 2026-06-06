@@ -1,15 +1,19 @@
-// src/pages/Teacher/CreateCourse.jsx
+// src/pages/Teacher/EditCourse.jsx
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
+import { useParams, useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
-import { Plus, Image as ImageIcon, Video, Trash2, FileEdit, Mic, Headphones, ScanLine, Type } from 'lucide-react';
+import { Plus, Image as ImageIcon, Video, Trash2, FileEdit, Mic, Headphones, ScanLine, Type, ArrowLeft } from 'lucide-react';
 import { useAuthStore } from '../store/useAuthStore'; 
 
-export const CreateCourse = () => {
+export const EditCourse = () => {
+  const { id } = useParams(); 
+  const navigate = useNavigate();
   const { user, token } = useAuthStore();
   const [isUploading, setIsUploading] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   
-  // TỰ ĐỘNG SCROLL LÊN ĐẦU TRANG KHI VÀO
+  // AUTO SCROLL
   useEffect(() => {
     window.scrollTo(0, 0);
   }, []);
@@ -18,44 +22,61 @@ export const CreateCourse = () => {
     title: '', description: '', subject: 'Tiếng Anh', tag: 'Cơ bản', price: '', thumbnail: ''
   });
 
-  const [chapters, setChapters] = useState([
-    { title: 'Ngày 1', sections: [{ title: 'Unit 1 - Buổi 1', lessons: [{ title: '', type: 'video_upload', contentUrl: '', duration: 0, exercises: [] }] }] }
-  ]);
-
+  const [chapters, setChapters] = useState([]);
   const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
-  const handleInfoChange = (e) => {
-    const { name, value } = e.target;
-    setCourseInfo(prev => ({ ...prev, [name]: value }));
-  };
+  useEffect(() => {
+    const fetchCourseData = async () => {
+      try {
+        const res = await axios.get(`${API_URL}/api/courses/${id}`);
+        const data = res.data;
+        setCourseInfo({
+          title: data.title || '', description: data.description || '', subject: data.subject || 'Tiếng Anh', tag: data.tag || 'Cơ bản', price: data.price || '', thumbnail: data.thumbnail || ''
+        });
+        if (data.chapters && data.chapters.length > 0) setChapters(data.chapters);
+        else setChapters([{ title: 'Ngày 1', sections: [{ title: 'Unit 1 - Buổi 1', lessons: [{ title: '', type: 'video_upload', contentUrl: '', duration: 0, exercises: [] }] }] }]);
+      } catch (error) {
+        toast.error('Không thể tải dữ liệu khóa học!');
+        navigate('/teacher-dashboard');
+      } finally { setIsLoading(false); }
+    };
+    fetchCourseData();
+  }, [id, API_URL, navigate]);
 
-  const handleSaveCourse = async () => {
+  const handleInfoChange = (e) => { const { name, value } = e.target; setCourseInfo(prev => ({ ...prev, [name]: value })); };
+
+  const handleUpdateCourse = async () => {
     if (!courseInfo.title) return toast.error('Vui lòng nhập tên khóa học!');
+    
+    // VALIDATE TIỀN TỆ
     if (courseInfo.price === '' || isNaN(courseInfo.price) || Number(courseInfo.price) < 0) {
-      return toast.error('Vui lòng nhập giá khóa học hợp lệ (Nhập 0 nếu Miễn phí)!');
+      return toast.error('Vui lòng nhập giá khóa học hợp lệ (Nhập 0 nếu bạn muốn Miễn phí)!');
     }
 
     try {
       const payload = { ...courseInfo, chapters };
-      await axios.post(`${API_URL}/api/courses`, payload, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      toast.success('Xuất bản khóa học thành công!');
-    } catch (error) { toast.error('Lỗi khi lưu khóa học!'); }
+      await axios.put(`${API_URL}/api/courses/${id}`, payload, { headers: { Authorization: `Bearer ${token}` }});
+      toast.success('Cập nhật khóa học thành công!');
+      navigate('/teacher-dashboard'); 
+    } catch (error) { toast.error('Lỗi khi cập nhật khóa học!'); }
   };
 
   const uploadFileToServer = async (file) => {
-    const formData = new FormData(); formData.append('file', file);
+    const formData = new FormData();
+    formData.append('file', file);
     const res = await axios.post(`${API_URL}/api/upload`, formData, { headers: { 'Content-Type': 'multipart/form-data', Authorization: `Bearer ${token}` }});
     return res.data.secure_url;
   };
 
   const handleFileUpload = async (e, callback, fileTypeDesc) => {
-    const file = e.target.files[0]; if (!file) return;
-    setIsUploading(true); toast.info(`Đang tải ${fileTypeDesc} lên...`);
+    const file = e.target.files[0];
+    if (!file) return;
+    setIsUploading(true);
+    toast.info(`Đang tải ${fileTypeDesc} lên...`);
     try {
       const url = await uploadFileToServer(file);
-      callback(url); toast.success(`Tải ${fileTypeDesc} thành công!`);
+      callback(url);
+      toast.success(`Tải ${fileTypeDesc} thành công!`);
     } catch (error) { toast.error(`Lỗi tải ${fileTypeDesc}!`); } 
     finally { setIsUploading(false); }
   };
@@ -68,6 +89,7 @@ export const CreateCourse = () => {
   
   const addExercise = (cIndex, sIndex, lIndex) => { const newChapters = [...chapters]; newChapters[cIndex].sections[sIndex].lessons[lIndex].exercises.push({ type: 'multiple_choice', question: '', options: ['', '', '', ''], correctAnswer: '', points: 10, contentUrl: '' }); setChapters(newChapters); };
   
+  // ĐỒNG BỘ: Cập nhật hàm updateExercise để handle logic đổi type (fill_blank, matching...)
   const updateExercise = (cIndex, sIndex, lIndex, eIndex, field, value) => { 
     const newChapters = [...chapters]; 
     newChapters[cIndex].sections[sIndex].lessons[lIndex].exercises[eIndex][field] = value; 
@@ -79,6 +101,7 @@ export const CreateCourse = () => {
     } 
     setChapters(newChapters); 
   };
+  
   const updateExerciseOption = (cIndex, sIndex, lIndex, eIndex, optIndex, value) => { const newChapters = [...chapters]; newChapters[cIndex].sections[sIndex].lessons[lIndex].exercises[eIndex].options[optIndex] = value; setChapters(newChapters); };
   const updateMatchingOption = (cIndex, sIndex, lIndex, eIndex, optIndex, side, value) => { const newChapters = [...chapters]; let currentVal = newChapters[cIndex].sections[sIndex].lessons[lIndex].exercises[eIndex].options[optIndex] || '|'; let parts = currentVal.split('|'); parts[side === 'left' ? 0 : 1] = value; newChapters[cIndex].sections[sIndex].lessons[lIndex].exercises[eIndex].options[optIndex] = parts.join('|'); setChapters(newChapters); };
   const removeExercise = (cIndex, sIndex, lIndex, eIndex) => { const newChapters = [...chapters]; newChapters[cIndex].sections[sIndex].lessons[lIndex].exercises.splice(eIndex, 1); setChapters(newChapters); };
@@ -219,13 +242,18 @@ export const CreateCourse = () => {
     );
   };
 
+  if (isLoading) return <div className="flex items-center justify-center min-h-screen text-blue-500 font-bold">Đang tải dữ liệu khóa học...</div>;
+
   return (
-    <div className="p-6 bg-[#f8fafc] min-h-screen pb-20">
+    <div className="p-6 bg-[#f8fafc] min-h-screen font-primary pb-20">
       <div className="max-w-5xl mx-auto">
-        <div className="flex justify-between items-center mb-6">
-          <h2 className="text-3xl font-bold text-gray-800">Tạo Khóa Học Mới</h2>
-          <button onClick={handleSaveCourse} disabled={isUploading} className="bg-surface-raised text-white px-8 py-3 rounded-lg font-bold hover:bg-blue-600 shadow-2 disabled:opacity-50 transition-all">
-            Lưu & Xuất bản
+        <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-4 mb-6">
+          <div className="flex items-center gap-3">
+            <button onClick={() => navigate('/teacher-dashboard')} className="p-2 border rounded-lg hover:bg-gray-100 transition-colors"><ArrowLeft size={20}/></button>
+            <h2 className="text-3xl font-bold text-gray-800">Chỉnh sửa Khóa Học</h2>
+          </div>
+          <button onClick={handleUpdateCourse} disabled={isUploading} className="bg-green-600 text-white px-8 py-3 rounded-lg font-bold hover:bg-green-700 shadow-2 disabled:opacity-50 transition-all">
+            Cập nhật khóa học
           </button>
         </div>
         
@@ -256,7 +284,7 @@ export const CreateCourse = () => {
                 </div>
                 <div>
                   <label className="block font-semibold text-gray-700 mb-1">Giá (VNĐ) *</label>
-                  <input type="number" name="price" value={courseInfo.price} onChange={handleInfoChange} className="w-full p-3 border rounded-lg bg-gray-50 border-orange-300" placeholder="0 = Miễn phí" />
+                  <input type="number" name="price" value={courseInfo.price} onChange={handleInfoChange} className="w-full p-3 border rounded-lg bg-gray-50 border-orange-300" />
                 </div>
               </div>
             </div>

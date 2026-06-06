@@ -1,7 +1,8 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, SlidersHorizontal, Clock, Eye, BookOpen, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Search, SlidersHorizontal, Clock, Eye, BookOpen, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
 import { toast } from 'react-toastify'; 
+import axios from 'axios';
 
 export const Lessons = () => {
   const navigate = useNavigate();
@@ -9,35 +10,42 @@ export const Lessons = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [apiCourses, setApiCourses] = useState([]); 
+  const [isLoading, setIsLoading] = useState(true); 
+  
   const itemsPerPage = 6;
 
-  // ĐÃ FIX: Dùng đường dẫn đầy đủ tới Backend để tránh lỗi HTML parse (404 từ Vite)
+  // --- AUTO SCROLL LÊN ĐẦU TRANG KHI VÀO COMPONENT ---
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, []);
+
   useEffect(() => {
     const fetchCourses = async () => {
+      setIsLoading(true);
       try {
         const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
-        const res = await fetch(`${API_URL}/api/courses`);
-        if (res.ok) {
-          const data = await res.json();
-          const formattedData = data.map(course => ({
-            id: course._id,
-            title: course.title,
-            tag: course.tag ? `${course.subject} ${course.tag}` : `${course.subject} Cơ bản`,
-            subject: course.subject,
-            image: course.thumbnail || getSubjectImage(course.subject),
-            // Định dạng giá tiền: 0 thành Miễn phí, có số thì format kiểu VNĐ
-            price: course.price === 0 ? "Miễn phí" : `${course.price.toLocaleString('vi-VN')} đ`,
-            status: course.isPublished ? "Đã xuất bản" : "Bản nháp",
-            time: "360 ngày",
-            views: course.views || 0,
-            lessons: course.chapters?.length || 0
-          }));
-          setApiCourses(formattedData);
-        } else {
-          toast.error('Lỗi khi lấy dữ liệu từ server');
-        }
+        const res = await axios.get(`${API_URL}/api/courses`);
+        
+        const formattedData = res.data.map(course => ({
+          id: course._id,
+          title: course.title,
+          tag: course.tag ? `${course.subject} - ${course.tag}` : `${course.subject} - Cơ bản`,
+          subject: course.subject,
+          image: course.thumbnail || getSubjectImage(course.subject),
+          price: !course.price || course.price === 0 ? "Miễn phí" : `${Number(course.price).toLocaleString('vi-VN')} đ`,
+          status: course.isPublished ? "Đã xuất bản" : "Bản nháp",
+          // ĐÃ LẤY SỐ NGÀY HỌC THẬT TỪ DATABASE
+          time: course.chapters?.length ? `${course.chapters.length} ngày` : "0 ngày",
+          views: course.views || 0,
+          lessons: course.chapters?.reduce((acc, chap) => acc + (chap.sections?.length || 0), 0) || 0
+        }));
+        
+        setApiCourses(formattedData.filter(c => c.status === "Đã xuất bản"));
       } catch (error) {
+        console.error("Lỗi Fetch Data Khóa Học:", error);
         toast.error('Không thể kết nối với hệ thống Backend');
+      } finally {
+        setIsLoading(false);
       }
     };
     fetchCourses();
@@ -53,20 +61,20 @@ export const Lessons = () => {
     }
   };
 
-  const allCourses = Array.from({ length: 24 }).map((_, i) => {
+  const allCourses = Array.from({ length: 6 }).map((_, i) => {
     const subjects = ['Tiếng Anh', 'Tiếng Trung', 'Tiếng Việt', 'Toán'];
     const subject = subjects[i % subjects.length];
     return {
       id: `mock-${i + 1}`,
-      title: `${subject} Cơ bản đến Nâng cao - Gói ${i + 1}`,
-      tag: `${subject} Cơ bản`,
+      title: `${subject} Cơ bản đến Nâng cao - Gói Mock ${i + 1}`,
+      tag: `${subject} - Cơ bản`,
       subject: subject,
       image: getSubjectImage(subject),
-      price: i % 3 === 0 ? "Miễn phí" : `${(i + 1) * 150}.000 đ`,
+      price: i % 2 === 0 ? "Miễn phí" : `${(i + 1) * 150}.000 đ`,
       status: "Đã xuất bản",
-      time: "360 ngày",
+      time: "15 ngày",
       views: Math.floor(Math.random() * 50000),
-      lessons: Math.floor(Math.random() * 100) + 10
+      lessons: Math.floor(Math.random() * 20) + 5
     };
   });
 
@@ -94,8 +102,6 @@ export const Lessons = () => {
       window.scrollTo({ top: 0, behavior: 'smooth' });
     }
   };
-
-  const subjectsFilter = ['Tất cả', 'Toán', 'Tiếng Anh', 'Tiếng Việt', 'Tiếng Trung'];
 
   return (
     <div className="bg-surface-strong min-h-screen py-8">
@@ -125,7 +131,7 @@ export const Lessons = () => {
               <div>
                 <h3 className="font-bold text-text-primary mb-3">Môn học</h3>
                 <div className="flex flex-wrap gap-2">
-                  {subjectsFilter.map(subj => (
+                  {['Tất cả', 'Toán', 'Tiếng Anh', 'Tiếng Việt', 'Tiếng Trung'].map(subj => (
                     <button 
                       key={subj} onClick={() => { setActiveSubject(subj); setCurrentPage(1); }}
                       className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${
@@ -147,7 +153,12 @@ export const Lessons = () => {
               Hiển thị {currentCourses.length > 0 ? (currentPage - 1) * itemsPerPage + 1 : 0} - {Math.min(currentPage * itemsPerPage, filteredCourses.length)} / {filteredCourses.length} bài học
             </div>
             
-            {filteredCourses.length === 0 ? (
+            {isLoading ? (
+              <div className="flex-1 flex flex-col items-center justify-center py-20 text-blue-500 gap-3">
+                <Loader2 size={40} className="animate-spin" />
+                <span className="font-medium">Đang tải danh sách bài học...</span>
+              </div>
+            ) : filteredCourses.length === 0 ? (
               <div className="flex-1 flex items-center justify-center bg-surface-muted rounded-2xl border border-border-default py-20 text-text-tertiary">
                 Không tìm thấy khóa học nào phù hợp.
               </div>

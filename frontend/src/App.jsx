@@ -1,5 +1,5 @@
-import React from 'react';
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import React, { useEffect } from 'react';
+import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom';
 import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 
@@ -22,10 +22,29 @@ import { Dashboard } from './pages/Dashboard';
 import { AdminDashboard } from './admin/AdminDashboard'; 
 import { TeacherDashboard } from './teacher/TeacherDashboard'; 
 import { CreateCourse } from './teacher/CreateCourse'; 
+import { EditCourse } from './teacher/EditCourse';
+
+// --- COMPONENT TỰ ĐỘNG CUỘN LÊN ĐẦU TRANG ---
+const ScrollToTop = () => {
+  const { pathname } = useLocation();
+
+  useEffect(() => {
+    window.scrollTo({
+      top: 0,
+      left: 0,
+      behavior: 'smooth' // Cuộn mượt mà
+    });
+  }, [pathname]);
+
+  return null;
+};
 
 function App() {
   return (
     <BrowserRouter>
+      {/* Đặt ScrollToTop ở đây để nó hoạt động trên toàn bộ website */}
+      <ScrollToTop />
+      
       <ToastContainer position="top-right" autoClose={3000} theme="light" />
       
       <Routes>
@@ -47,7 +66,6 @@ function App() {
         {/* STUDENT ROUTES - Dùng StudentLayout (Sidebar trái) */}
         <Route path="/dashboard" element={<StudentLayout />}>
           <Route index element={<Dashboard />} />
-          {/* Ví dụ trang trong: /dashboard/my-courses */}
           <Route path="my-courses" element={<ComingSoon title="Khóa học của tôi" />} />
           <Route path="subscription" element={<ComingSoon title="Gói đăng ký" />} />
           <Route path="settings" element={<ComingSoon title="Cài đặt học viên" />} />
@@ -60,6 +78,7 @@ function App() {
           <Route path="stats" element={<ComingSoon title="Thống kê doanh thu" />} />
           <Route path="settings" element={<ComingSoon title="Cài đặt hồ sơ giáo viên" />} />
           <Route path="create-course" element={<CreateCourse />} />
+          <Route path="edit-course/:id" element={<EditCourse />} />
         </Route>
 
         {/* ADMIN ROUTES - Dùng AdminLayout */}

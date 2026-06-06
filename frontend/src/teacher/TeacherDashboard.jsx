@@ -7,38 +7,68 @@ import { toast } from 'react-toastify';
 import axios from 'axios';
 
 export const TeacherDashboard = () => {
-  const { user } = useAuthStore();
+  const { user, token } = useAuthStore(); 
   const navigate = useNavigate();
   const [courses, setCourses] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  // Tự động lấy danh sách khóa học để hiển thị lên Dashboard
+  const fetchMyCourses = async () => {
+    try {
+      const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+      const res = await axios.get(`${API_URL}/api/courses/my-courses`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setCourses(res.data); 
+    } catch (error) {
+      console.error(error);
+      toast.error('Không thể tải danh sách khóa học');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
-    const fetchMyCourses = async () => {
-      try {
-        const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
-        const res = await axios.get(`${API_URL}/api/courses`);
-        setCourses(res.data); 
-      } catch (error) {
-        console.error(error);
-        toast.error('Không thể tải danh sách khóa học');
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchMyCourses();
-  }, []);
+    if (token) fetchMyCourses();
+  }, [token]);
+
+  // --- HÀM XỬ LÝ XÓA KHÓA HỌC ---
+  const handleDelete = async (courseId) => {
+    if (!window.confirm('⚠️ Bạn có chắc chắn muốn xóa khóa học này không? Hành động này không thể hoàn tác!')) {
+      return;
+    }
+    
+    try {
+      const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+      await axios.delete(`${API_URL}/api/courses/${courseId}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      toast.success('Xóa khóa học thành công!');
+      // Cập nhật lại state để khóa học biến mất khỏi màn hình ngay lập tức
+      setCourses(courses.filter(course => course._id !== courseId));
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'Có lỗi xảy ra khi xóa khóa học!');
+    }
+  };
+
+  // --- HÀM XỬ LÝ XEM KHÓA HỌC ---
+  const handleView = (courseId) => {
+    navigate(`/lessons/${courseId}`);
+  };
+
+  // --- HÀM XỬ LÝ SỬA KHÓA HỌC ---
+  const handleEdit = (courseId) => {
+    // Điều hướng sang trang sửa khóa học (Bạn cần tạo page EditCourse.jsx sau)
+    navigate(`/teacher-dashboard/edit-course/${courseId}`);
+  };
 
   return (
     <div className="w-full flex flex-col gap-6">
-      {/* HEADER */}
       <header className="flex justify-between items-center mb-4">
         <div>
           <h1 className="text-3xl font-bold">Chào mừng trở lại, Thầy/Cô {user?.displayName?.split(' ').pop()}! 👋</h1>
           <p className="text-text-tertiary mt-1">Chúc bạn một ngày giảng dạy hiệu quả.</p>
         </div>
         
-        {/* Đã sửa: Nút này giờ sẽ chuyển hướng sang trang Create Course riêng */}
         <button 
           onClick={() => navigate('/teacher-dashboard/create-course')}
           className="flex items-center gap-2 bg-surface-raised hover:bg-blue-600 text-surface-muted px-4 py-2 rounded-md text-sm font-bold transition-colors shadow-1"
@@ -47,9 +77,8 @@ export const TeacherDashboard = () => {
         </button>
       </header>
 
-      {/* DANH SÁCH KHÓA HỌC */}
       <div className="bg-surface-muted border border-border-default rounded-lg p-6 shadow-1 min-h-[400px]">
-        <h3 className="text-xl font-bold mb-6 text-gray-800">Các khóa học đang giảng dạy</h3>
+        <h3 className="text-xl font-bold mb-6 text-gray-800">Các khóa học bạn đã tạo</h3>
         
         {loading ? (
           <div className="text-center py-12 text-gray-500">Đang tải dữ liệu...</div>
@@ -85,18 +114,30 @@ export const TeacherDashboard = () => {
                   </span>
                   <h4 className="font-bold text-gray-800 text-lg mb-2 line-clamp-2">{course.title}</h4>
                   <p className="text-sm text-gray-500 mb-4 font-medium flex-1">
-                    Giá: {course.price === 0 ? 'Miễn phí' : `${course.price.toLocaleString('vi-VN')} đ`}
+                    Giá: {course.price === 0 ? 'Miễn phí' : `${course.price?.toLocaleString('vi-VN')} đ`}
                   </p>
                   
+                  {/* CÁC NÚT HÀNH ĐỘNG ĐÃ ĐƯỢC GẮN SỰ KIỆN */}
                   <div className="flex items-center justify-between pt-3 border-t border-gray-100">
-                    <button className="text-gray-500 hover:text-blue-600 flex items-center gap-1 text-sm font-medium">
+                    <button 
+                      onClick={() => handleView(course._id)}
+                      className="text-gray-500 hover:text-blue-600 flex items-center gap-1 text-sm font-medium transition-colors"
+                    >
                       <Eye size={16} /> Xem
                     </button>
                     <div className="flex gap-2">
-                      <button className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors" title="Chỉnh sửa">
+                      <button 
+                        onClick={() => handleEdit(course._id)}
+                        className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors" 
+                        title="Chỉnh sửa"
+                      >
                         <Edit size={16} />
                       </button>
-                      <button className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors" title="Xóa">
+                      <button 
+                        onClick={() => handleDelete(course._id)}
+                        className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors" 
+                        title="Xóa"
+                      >
                         <Trash2 size={16} />
                       </button>
                     </div>
