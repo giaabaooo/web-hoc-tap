@@ -132,7 +132,7 @@ export const AuthPage = () => {
         {/* ĐÃ THÊM LOGO VÀO ĐÂY */}
         <Link to="/">
           <img 
-  src="/logo.jpg" 
+  src="/logo.png" 
   alt="Tự Học Vui Logo" 
   className="h-28 w-auto object-contain drop-shadow-sm mb-2 hover:scale-105 transition-transform cursor-pointer mix-blend-multiply" 
 />

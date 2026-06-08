@@ -1,36 +1,33 @@
 // models/Course.js
 import mongoose from 'mongoose';
 
-// Cấp 4: Bài tập đi kèm bài học
 const exerciseSchema = new mongoose.Schema({
   type: { 
     type: String, 
     enum: ['multiple_choice', 'speaking', 'listening', 'flashcard', 'vocab', 'matching', 'fill_blank','essay'], 
     required: true 
   },
-  question: { type: String, required: true }, // Câu hỏi hoặc Từ vựng cần đọc
-  options: [{ type: String }], // Dùng cho Multiple Choice hoặc Matching (Mảng các lựa chọn)
-  correctAnswer: { type: String, required: true }, // Đáp án đúng
-  points: { type: Number, default: 10 }, // Điểm số
+  instruction: { type: String, default: '' }, // ĐÃ BỔ SUNG TRƯỜNG NÀY
+  question: { type: String, required: true },
+  options: [{ type: String }], 
+  correctAnswer: { type: String, required: true }, 
+  points: { type: Number, default: 10 }, 
   contentUrl: { type: String }
 });
 
-// Cấp 3: Nội dung bài học (Video, Ảnh, PDF...)
 const lessonSchema = new mongoose.Schema({
   title: { type: String, required: true },
   type: { type: String, enum: ['video_upload', 'youtube', 'image', 'document'], default: 'video_upload' },
   contentUrl: { type: String }, 
   duration: { type: Number, default: 0 }, 
-  exercises: [exerciseSchema] // MỚI: Thêm mảng bài tập vào sau mỗi bài học
+  exercises: [exerciseSchema]
 });
 
-// Cấp 2: Unit / Buổi học
 const sectionSchema = new mongoose.Schema({
   title: { type: String, required: true },
   lessons: [lessonSchema]
 });
 
-// Cấp 1: Ngày / Chương
 const chapterSchema = new mongoose.Schema({
   title: { type: String, required: true }, 
   sections: [sectionSchema] 

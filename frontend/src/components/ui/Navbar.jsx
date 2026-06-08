@@ -56,7 +56,7 @@ export const Navbar = () => {
                 <Link to="/" className="flex items-center gap-3 outline-none focus-visible:ring-2 focus-visible:ring-surface-raised rounded pr-2">
                     {/* ĐÃ THÊM LOGO TẠI ĐÂY */}
                     <img
-                        src="/logo.jpg"
+                        src="/logo.png"
                         alt="Tự Học Vui Logo"
                         className="h-12 w-auto object-contain drop-shadow-sm mix-blend-multiply"
                     />

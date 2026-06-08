@@ -2,14 +2,13 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { toast } from 'react-toastify';
-import { Plus, Image as ImageIcon, Video, Trash2, FileEdit, Mic, Headphones, ScanLine, Type } from 'lucide-react';
+import { Plus, Image as ImageIcon, Video, Trash2, FileEdit, Mic, Headphones, ScanLine, Type, FileText } from 'lucide-react';
 import { useAuthStore } from '../store/useAuthStore'; 
 
 export const CreateCourse = () => {
   const { user, token } = useAuthStore();
   const [isUploading, setIsUploading] = useState(false);
   
-  // TỰ ĐỘNG SCROLL LÊN ĐẦU TRANG KHI VÀO
   useEffect(() => {
     window.scrollTo(0, 0);
   }, []);
@@ -19,7 +18,7 @@ export const CreateCourse = () => {
   });
 
   const [chapters, setChapters] = useState([
-    { title: 'Ngày 1', sections: [{ title: 'Unit 1 - Buổi 1', lessons: [{ title: '', type: 'video_upload', contentUrl: '', duration: 0, exercises: [] }] }] }
+    { title: 'Ngày 1', sections: [{ title: 'Unit 1 - Buổi 1', lessons: [{ title: '', type: 'video_upload', contentUrl: '', exercises: [] }] }] }
   ]);
 
   const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
@@ -29,11 +28,42 @@ export const CreateCourse = () => {
     setCourseInfo(prev => ({ ...prev, [name]: value }));
   };
 
-  const handleSaveCourse = async () => {
-    if (!courseInfo.title) return toast.error('Vui lòng nhập tên khóa học!');
-    if (courseInfo.price === '' || isNaN(courseInfo.price) || Number(courseInfo.price) < 0) {
-      return toast.error('Vui lòng nhập giá khóa học hợp lệ (Nhập 0 nếu Miễn phí)!');
+  // HÀM KIỂM TRA DỮ LIỆU CHẶT CHẼ TRƯỚC KHI LƯU
+  const validateData = () => {
+    if (!courseInfo.title.trim()) return "Vui lòng nhập Tên khóa học!";
+    if (courseInfo.price === '' || isNaN(courseInfo.price) || Number(courseInfo.price) < 0) return "Vui lòng nhập Giá hợp lệ (Nhập 0 nếu Miễn phí)!";
+    if (!courseInfo.thumbnail) return "Vui lòng tải lên Ảnh bìa (Thumbnail)!";
+
+    for (let c = 0; c < chapters.length; c++) {
+      const chapter = chapters[c];
+      if (!chapter.title.trim()) return `Vui lòng nhập tên Chương ${c + 1}!`;
+      if (chapter.sections.length === 0) return `Chương "${chapter.title}" cần ít nhất 1 Buổi học!`;
+
+      for (let s = 0; s < chapter.sections.length; s++) {
+        const section = chapter.sections[s];
+        if (!section.title.trim()) return `Vui lòng nhập tên Buổi học ${s + 1} (thuộc Chương ${c + 1})!`;
+        if (section.lessons.length === 0) return `Buổi học "${section.title}" cần ít nhất 1 Bài học lý thuyết!`;
+
+        for (let l = 0; l < section.lessons.length; l++) {
+          const lesson = section.lessons[l];
+          if (!lesson.title.trim()) return `Vui lòng nhập Tên bài học lý thuyết thứ ${l + 1} (trong "${section.title}")!`;
+          if (!lesson.contentUrl.trim()) return `Bài học "${lesson.title}" chưa có File đính kèm hoặc Đường dẫn (Link)!`;
+
+          if (lesson.exercises) {
+            for (let e = 0; e < lesson.exercises.length; e++) {
+              const ex = lesson.exercises[e];
+              if (!ex.question.trim()) return `Bài tập thứ ${e + 1} (trong "${lesson.title}") không được để trống Câu hỏi/Yêu cầu!`;
+            }
+          }
+        }
+      }
     }
+    return null; // Trả về null nếu mọi thứ OK
+  };
+
+  const handleSaveCourse = async () => {
+    const errorMsg = validateData();
+    if (errorMsg) return toast.warning(errorMsg);
 
     try {
       const payload = { ...courseInfo, chapters };
@@ -41,7 +71,10 @@ export const CreateCourse = () => {
         headers: { Authorization: `Bearer ${token}` }
       });
       toast.success('Xuất bản khóa học thành công!');
-    } catch (error) { toast.error('Lỗi khi lưu khóa học!'); }
+    } catch (error) { 
+      console.error(error.response?.data);
+      toast.error(error.response?.data?.message || 'Lỗi khi lưu khóa học! Vui lòng kiểm tra lại đường truyền mạng.'); 
+    }
   };
 
   const uploadFileToServer = async (file) => {
@@ -60,22 +93,54 @@ export const CreateCourse = () => {
     finally { setIsUploading(false); }
   };
 
+  // HÀM EXTRACT YOUTUBE ID DÙNG CHO PREVIEW
+  const getYouTubeId = (url) => {
+    const match = url.match(/(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=|watch\?.+&v=))((\w|-){11})/);
+    return (match && match[1]) ? match[1] : null;
+  };
+
+  // COMPONENT HIỂN THỊ PREVIEW
+  const LessonPreview = ({ lesson }) => {
+    if (!lesson.contentUrl) {
+      return <div className="text-gray-400 font-medium text-sm">Khu vực xem trước nội dung</div>;
+    }
+    if (lesson.type === 'image') {
+      return <img src={lesson.contentUrl} alt="Preview" className="w-full h-full object-contain bg-black/5" />;
+    }
+    if (lesson.type === 'video_upload') {
+      return <video src={lesson.contentUrl} controls className="w-full h-full bg-black object-contain" />;
+    }
+    if (lesson.type === 'youtube') {
+      const yId = getYouTubeId(lesson.contentUrl);
+      if (yId) {
+        return <iframe className="w-full h-full" src={`https://www.youtube.com/embed/${yId}`} title="YouTube video player" frameBorder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowFullScreen></iframe>;
+      }
+      return <div className="text-red-500 font-medium text-sm text-center px-4">Link YouTube không hợp lệ! Vui lòng kiểm tra lại.</div>;
+    }
+    // Dành cho Document (PDF) hoặc Link khác
+    return (
+      <div className="flex flex-col items-center justify-center p-4 text-blue-500">
+        <FileText size={40} className="mb-2 opacity-80" />
+        <span className="text-xs text-center break-all text-gray-600 px-4 font-medium">{lesson.contentUrl}</span>
+      </div>
+    );
+  };
+
   const addChapter = () => setChapters([...chapters, { title: `Ngày ${chapters.length + 1}`, sections: [] }]);
   const addSection = (cIndex) => { const newChapters = [...chapters]; newChapters[cIndex].sections.push({ title: `Unit - Buổi mới`, lessons: [] }); setChapters(newChapters); };
-  const addLesson = (cIndex, sIndex) => { const newChapters = [...chapters]; newChapters[cIndex].sections[sIndex].lessons.push({ title: '', type: 'video_upload', contentUrl: '', duration: 0, exercises: [] }); setChapters(newChapters); };
+  const addLesson = (cIndex, sIndex) => { const newChapters = [...chapters]; newChapters[cIndex].sections[sIndex].lessons.push({ title: '', type: 'video_upload', contentUrl: '', exercises: [] }); setChapters(newChapters); };
   const updateLesson = (cIndex, sIndex, lIndex, field, value) => { const newChapters = [...chapters]; newChapters[cIndex].sections[sIndex].lessons[lIndex][field] = value; if (field === 'type') newChapters[cIndex].sections[sIndex].lessons[lIndex]['contentUrl'] = ''; setChapters(newChapters); };
   const removeLesson = (cIndex, sIndex, lIndex) => { const newChapters = [...chapters]; newChapters[cIndex].sections[sIndex].lessons.splice(lIndex, 1); setChapters(newChapters); };
   
-  const addExercise = (cIndex, sIndex, lIndex) => { const newChapters = [...chapters]; newChapters[cIndex].sections[sIndex].lessons[lIndex].exercises.push({ type: 'multiple_choice', question: '', options: ['', '', '', ''], correctAnswer: '', points: 10, contentUrl: '' }); setChapters(newChapters); };
+  const addExercise = (cIndex, sIndex, lIndex) => { const newChapters = [...chapters]; newChapters[cIndex].sections[sIndex].lessons[lIndex].exercises.push({ type: 'multiple_choice', instruction: '', question: '', options: ['', '', '', ''], correctAnswer: '', points: 10, contentUrl: '' }); setChapters(newChapters); };
   
   const updateExercise = (cIndex, sIndex, lIndex, eIndex, field, value) => { 
     const newChapters = [...chapters]; 
     newChapters[cIndex].sections[sIndex].lessons[lIndex].exercises[eIndex][field] = value; 
-    
     if (field === 'type') {
       if (value === 'matching') newChapters[cIndex].sections[sIndex].lessons[lIndex].exercises[eIndex].options = ['|', '|', '|', '|'];
       else if (value === 'multiple_choice') newChapters[cIndex].sections[sIndex].lessons[lIndex].exercises[eIndex].options = ['', '', '', ''];
-      else if (value === 'fill_blank') newChapters[cIndex].sections[sIndex].lessons[lIndex].exercises[eIndex].options = []; // Mặc định fill blank là gõ chữ
+      else if (value === 'fill_blank') newChapters[cIndex].sections[sIndex].lessons[lIndex].exercises[eIndex].options = []; 
     } 
     setChapters(newChapters); 
   };
@@ -106,8 +171,19 @@ export const CreateCourse = () => {
 
         <div className="bg-white rounded-lg border border-slate-200 p-6 relative overflow-hidden">
           <div className="absolute top-0 left-0 bg-slate-100 text-slate-400 text-[10px] font-bold px-2 py-1 uppercase tracking-wider rounded-br-lg">Giao diện học sinh</div>
-          <div className="mt-4">
+          <div className="mt-6">
             
+            <div className="mb-4">
+              <label className="block text-xs font-bold text-gray-500 mb-1 uppercase tracking-wide">Hướng dẫn làm bài (Không bắt buộc)</label>
+              <textarea
+                value={exercise.instruction || ''}
+                onChange={(e) => updateExercise(cIndex, sIndex, lIndex, eIndex, 'instruction', e.target.value)}
+                placeholder="VD: Lắng nghe đoạn audio và chọn đáp án đúng..."
+                className="w-full p-2.5 text-sm bg-yellow-50 border border-yellow-200 rounded-lg outline-none focus:border-yellow-400 focus:bg-yellow-100/50 transition-colors resize-none"
+                rows="2"
+              />
+            </div>
+
             {exercise.type === 'multiple_choice' && (
               <div className="space-y-4">
                 <input type="text" value={exercise.question} onChange={(e) => updateExercise(cIndex, sIndex, lIndex, eIndex, 'question', e.target.value)} placeholder="Nhập câu hỏi trắc nghiệm..." className="w-full text-lg font-bold text-gray-800 outline-none border-b-2 border-transparent focus:border-blue-400 pb-1" />
@@ -126,10 +202,7 @@ export const CreateCourse = () => {
               <div className="space-y-4">
                 <div className="flex justify-between items-center bg-blue-50 text-blue-800 text-xs p-2 rounded mb-2">
                   <div className="flex gap-2"><Type size={14}/> Mẹo: Dùng 3 dấu gạch dưới <b>___</b> để tạo ô trống.</div>
-                  <button 
-                    onClick={() => updateExercise(cIndex, sIndex, lIndex, eIndex, 'options', isFillBlankChoice ? [] : ['', '', '', ''])}
-                    className="bg-blue-600 text-white px-3 py-1 rounded font-bold hover:bg-blue-700 transition-colors"
-                  >
+                  <button onClick={() => updateExercise(cIndex, sIndex, lIndex, eIndex, 'options', isFillBlankChoice ? [] : ['', '', '', ''])} className="bg-blue-600 text-white px-3 py-1 rounded font-bold hover:bg-blue-700 transition-colors">
                     {isFillBlankChoice ? 'Chuyển sang: Học sinh Tự gõ' : 'Chuyển sang: Trắc nghiệm 4 đáp án'}
                   </button>
                 </div>
@@ -221,7 +294,7 @@ export const CreateCourse = () => {
 
   return (
     <div className="p-6 bg-[#f8fafc] min-h-screen pb-20">
-      <div className="max-w-5xl mx-auto">
+      <div className="max-w-6xl mx-auto">
         <div className="flex justify-between items-center mb-6">
           <h2 className="text-3xl font-bold text-gray-800">Tạo Khóa Học Mới</h2>
           <button onClick={handleSaveCourse} disabled={isUploading} className="bg-surface-raised text-white px-8 py-3 rounded-lg font-bold hover:bg-blue-600 shadow-2 disabled:opacity-50 transition-all">
@@ -262,8 +335,8 @@ export const CreateCourse = () => {
             </div>
 
             <div className="flex flex-col">
-              <label className="block font-semibold text-gray-700 mb-1">Ảnh bìa (Thumbnail)</label>
-              <div className="flex-1 border-2 border-dashed border-gray-300 rounded-lg bg-gray-50 flex flex-col items-center justify-center relative overflow-hidden group">
+              <label className="block font-semibold text-gray-700 mb-1">Ảnh bìa (Thumbnail) *</label>
+              <div className="flex-1 border-2 border-dashed border-gray-300 rounded-lg bg-gray-50 flex flex-col items-center justify-center relative overflow-hidden group min-h-[250px]">
                 {courseInfo.thumbnail ? (
                   <>
                     <img src={courseInfo.thumbnail} alt="Thumbnail" className="w-full h-full object-cover absolute inset-0" />
@@ -281,7 +354,7 @@ export const CreateCourse = () => {
             <div key={cIndex} className="bg-white p-6 rounded-xl shadow-sm border-2 border-blue-100">
               <div className="flex items-center gap-3 mb-4 border-b-2 border-blue-500 pb-2">
                 <span className="bg-blue-500 text-white px-3 py-1 rounded-md font-bold text-sm">Chương {cIndex + 1}</span>
-                <input type="text" value={chapter.title} onChange={(e) => { const newChapters = [...chapters]; newChapters[cIndex].title = e.target.value; setChapters(newChapters); }} className="text-xl font-bold text-gray-800 outline-none bg-transparent w-full" />
+                <input type="text" value={chapter.title} onChange={(e) => { const newChapters = [...chapters]; newChapters[cIndex].title = e.target.value; setChapters(newChapters); }} className="text-xl font-bold text-gray-800 outline-none bg-transparent w-full" placeholder="Nhập tên Chương..." />
               </div>
 
               <div className="space-y-4 pl-4">
@@ -289,33 +362,45 @@ export const CreateCourse = () => {
                   <div key={sIndex} className="bg-gray-50 p-5 rounded-xl border border-gray-200">
                     <div className="flex items-center gap-2 mb-4 border-b border-gray-200 pb-3">
                       <div className="w-3 h-3 rounded-full bg-orange-500"></div>
-                      <input type="text" value={section.title} onChange={(e) => { const newChapters = [...chapters]; newChapters[cIndex].sections[sIndex].title = e.target.value; setChapters(newChapters); }} className="font-bold text-lg text-orange-600 outline-none bg-transparent w-full" />
+                      <input type="text" value={section.title} onChange={(e) => { const newChapters = [...chapters]; newChapters[cIndex].sections[sIndex].title = e.target.value; setChapters(newChapters); }} className="font-bold text-lg text-orange-600 outline-none bg-transparent w-full" placeholder="Nhập tên Buổi học..." />
                     </div>
 
                     <div className="space-y-6 pl-2 border-l-2 border-orange-200 ml-1.5">
                       {section.lessons.map((lesson, lIndex) => (
                         <div key={lIndex} className="bg-white p-5 rounded-xl shadow-sm border border-gray-200 relative group">
-                          <button onClick={() => removeLesson(cIndex, sIndex, lIndex)} className="absolute top-3 right-3 text-gray-400 hover:text-red-500 bg-gray-50 p-1.5 rounded-md transition-colors"><Trash2 size={18} /></button>
+                          <button onClick={() => removeLesson(cIndex, sIndex, lIndex)} className="absolute top-3 right-3 text-gray-400 hover:text-red-500 bg-gray-50 p-1.5 rounded-md transition-colors z-10" title="Xóa bài học"><Trash2 size={18} /></button>
 
-                          <div className="flex flex-col lg:flex-row gap-4 mb-2 pr-10">
-                            <div className="flex-1 space-y-4">
-                              <div className="flex gap-3">
-                                <input type="text" value={lesson.title} placeholder="Tên bài học lý thuyết..." onChange={(e) => updateLesson(cIndex, sIndex, lIndex, 'title', e.target.value)} className="p-3 border border-gray-300 rounded-lg flex-1 text-sm font-bold bg-gray-50 outline-none focus:border-blue-400 focus:bg-white transition-colors" />
-                                <input type="number" value={lesson.duration} placeholder="Phút" onChange={(e) => updateLesson(cIndex, sIndex, lIndex, 'duration', e.target.value)} className="p-3 border border-gray-300 rounded-lg w-24 text-sm focus:border-blue-400 outline-none" title="Thời lượng (phút)" />
-                              </div>
+                          {/* KHU VỰC NHẬP LÝ THUYẾT ĐÃ ĐƯỢC CHIA ĐÔI LAYOUT */}
+                          <div className="flex flex-col md:flex-row gap-6 mb-2">
+                            {/* NỬA TRÁI: Nhập liệu */}
+                            <div className="flex-1 space-y-4 pt-1">
+                              <input type="text" value={lesson.title} placeholder="Tên bài học lý thuyết (VD: Vocabulary, Grammar...)" onChange={(e) => updateLesson(cIndex, sIndex, lIndex, 'title', e.target.value)} className="w-full p-3 border border-gray-300 rounded-lg text-sm font-bold bg-gray-50 outline-none focus:border-blue-400 focus:bg-white transition-colors" />
 
-                              <div className="flex items-center gap-3">
+                              <div className="flex flex-col xl:flex-row xl:items-center gap-3">
                                 <select value={lesson.type} onChange={(e) => updateLesson(cIndex, sIndex, lIndex, 'type', e.target.value)} className="p-3 border border-gray-300 rounded-lg text-sm bg-white outline-none focus:border-blue-400 font-medium">
-                                  <option value="video_upload">Video MP4</option><option value="youtube">Link YouTube</option><option value="document">Tài liệu (PDF/Link)</option>
+                                  <option value="video_upload">Video MP4</option>
+                                  <option value="image">Hình ảnh</option>
+                                  <option value="youtube">Link YouTube</option>
+                                  <option value="document">Tài liệu (PDF/Link)</option>
                                 </select>
+                                
                                 <div className="flex-1">
                                   {lesson.type === 'youtube' || lesson.type === 'document' ? (
-                                    <input type="text" value={lesson.contentUrl} placeholder="Nhập Link/URL..." onChange={(e) => updateLesson(cIndex, sIndex, lIndex, 'contentUrl', e.target.value)} className="p-3 border border-gray-300 rounded-lg w-full text-sm outline-none focus:border-blue-400" />
+                                    <input type="text" value={lesson.contentUrl} placeholder="Nhập Link/URL (VD: https://...)" onChange={(e) => updateLesson(cIndex, sIndex, lIndex, 'contentUrl', e.target.value)} className="w-full p-3 border border-gray-300 rounded-lg text-sm outline-none focus:border-blue-400" />
                                   ) : (
-                                    <label className="cursor-pointer bg-gray-100 border border-gray-300 hover:bg-blue-50 hover:text-blue-600 hover:border-blue-300 px-5 py-3 rounded-lg text-sm font-bold flex items-center gap-2 w-fit transition-all"><Video size={18}/> {lesson.contentUrl ? '✅ Đã tải file - Đổi file' : 'Tải Video lên'}<input type="file" accept="video/*" className="hidden" onChange={(e) => handleFileUpload(e, (url) => updateLesson(cIndex, sIndex, lIndex, 'contentUrl', url), 'Video')} disabled={isUploading} /></label>
+                                    <label className="cursor-pointer bg-gray-100 border border-gray-300 hover:bg-blue-50 hover:text-blue-600 hover:border-blue-300 px-5 py-3 rounded-lg text-sm font-bold flex items-center justify-center gap-2 transition-all w-full">
+                                      {lesson.type === 'image' ? <ImageIcon size={18}/> : <Video size={18}/>} 
+                                      {lesson.contentUrl ? '✅ Đã tải file - Đổi file' : (lesson.type === 'image' ? 'Chọn Ảnh tải lên' : 'Chọn Video tải lên')}
+                                      <input type="file" accept={lesson.type === 'image' ? "image/*" : "video/*"} className="hidden" onChange={(e) => handleFileUpload(e, (url) => updateLesson(cIndex, sIndex, lIndex, 'contentUrl', url), lesson.type === 'image' ? 'Ảnh' : 'Video')} disabled={isUploading} />
+                                    </label>
                                   )}
                                 </div>
                               </div>
+                            </div>
+                            
+                            {/* NỬA PHẢI: Khung Preview To */}
+                            <div className="w-full md:w-[45%] lg:w-1/2 aspect-video bg-gray-50 rounded-lg border-2 border-dashed border-gray-300 flex items-center justify-center overflow-hidden relative shadow-inner">
+                               <LessonPreview lesson={lesson} />
                             </div>
                           </div>
 
