@@ -44,8 +44,6 @@ export const deleteCourse = async (req, res) => {
   } catch (error) { res.status(500).json({ message: 'Lỗi server' }); }
 };
 
-// ================= CÁC API HỌC & CHẤM ĐIỂM =================
-
 export const checkEnrollment = async (req, res) => {
   try {
     const enrollment = await Enrollment.findOne({ course: req.params.id, student: req.user._id });
@@ -55,11 +53,9 @@ export const checkEnrollment = async (req, res) => {
 
 export const enrollCourse = async (req, res) => {
   try {
-    // KHÔNG CHO PHÉP GIÁO VIÊN HOẶC ADMIN BẤM THAM GIA KHÓA HỌC
     if (req.user.role === 'teacher' || req.user.role === 'admin') {
-      return res.status(403).json({ message: 'Giáo viên không thể tham gia khóa học như một học sinh!' });
+      return res.status(403).json({ message: 'Giáo viên không thể tham gia khóa học!' });
     }
-
     let enrollment = await Enrollment.findOne({ course: req.params.id, student: req.user._id });
     if (!enrollment) { enrollment = await Enrollment.create({ course: req.params.id, student: req.user._id }); }
     res.status(200).json(enrollment);
@@ -81,8 +77,27 @@ export const submitLesson = async (req, res) => {
     if (targetLesson.exercises && targetLesson.exercises.length > 0) {
       targetLesson.exercises.forEach(ex => {
         const studentAns = answers[ex._id.toString()];
+        
         if (ex.type === 'speaking') {
-           if (studentAns && typeof studentAns === 'object' && studentAns.score !== undefined) score += studentAns.score;
+           if (studentAns && typeof studentAns === 'object') {
+             // Nếu có trắc nghiệm + speaking (chia đôi điểm)
+             if (ex.options && ex.options.length > 0) {
+               let partScore = 0;
+               if (studentAns.choice === ex.correctAnswer) partScore += (ex.points / 2);
+               if (studentAns.score !== undefined) partScore += (studentAns.score / 2);
+               score += partScore;
+             } else {
+               if (studentAns.score !== undefined) score += studentAns.score;
+             }
+           }
+        } else if (ex.type === 'reading') {
+           if (studentAns && typeof studentAns === 'object') {
+             let correctCount = 0;
+             ex.subQuestions.forEach((sq, idx) => {
+               if (studentAns[idx] === sq.correctAnswer) correctCount++;
+             });
+             score += Math.round((correctCount / ex.subQuestions.length) * ex.points);
+           }
         } else if (ex.type === 'essay') {
            if (studentAns) score += ex.points; 
         } else if (studentAns && studentAns.toString().trim().toLowerCase() === ex.correctAnswer.trim().toLowerCase()) {
