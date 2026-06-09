@@ -15,9 +15,7 @@ export const TeacherDashboard = () => {
   const [showStats, setShowStats] = useState(false);
   const [participants, setParticipants] = useState([]);
   const [statsLoading, setStatsLoading] = useState(false);
-  const [selectedCourse, setSelectedCourse] = useState(null); // Lưu toàn bộ course data để render chi tiết
-  
-  // Quản lý việc đóng/mở hàng chi tiết của từng học sinh
+  const [selectedCourse, setSelectedCourse] = useState(null); 
   const [expandedStudentId, setExpandedStudentId] = useState(null);
 
   const fetchMyCourses = async () => {
@@ -48,7 +46,6 @@ export const TeacherDashboard = () => {
     try {
       const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
       const res = await axios.get(`${API_URL}/api/courses/${courseId}/participants`, { headers: { Authorization: `Bearer ${token}` }});
-      // Backend trả về { course, enrollments }
       setSelectedCourse(res.data.course);
       setParticipants(res.data.enrollments);
     } catch (error) { toast.error("Lỗi lấy danh sách học viên!"); } 
@@ -75,7 +72,12 @@ export const TeacherDashboard = () => {
         {loading ? <div className="text-center py-12 text-gray-500">Đang tải dữ liệu...</div> : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {courses.map(course => (
-              <div key={course._id} className="border border-gray-200 rounded-lg overflow-hidden flex flex-col hover:shadow-md">
+              <div key={course._id} className="border border-gray-200 rounded-lg overflow-hidden flex flex-col hover:shadow-md relative">
+                {/* THẺ HIỂN THỊ DRAFT / PUBLISH */}
+                <span className={`absolute top-3 right-3 px-3 py-1.5 text-xs font-bold rounded shadow-md z-10 ${course.isPublished ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>
+                  {course.isPublished ? 'Đã xuất bản' : 'Bản nháp'}
+                </span>
+
                 <img src={course.thumbnail || "https://images.unsplash.com/photo-1503676260728-1c00da094a0b?w=400"} alt="Thumb" className="w-full h-40 object-cover" />
                 <div className="p-4 flex flex-col flex-1">
                   <h4 className="font-bold text-gray-800 text-lg mb-2">{course.title}</h4>
@@ -98,7 +100,6 @@ export const TeacherDashboard = () => {
         )}
       </div>
 
-      {/* MODAL THỐNG KÊ CHI TIẾT */}
       {showStats && selectedCourse && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-xl shadow-xl w-full max-w-5xl max-h-[90vh] flex flex-col overflow-hidden">
@@ -117,7 +118,6 @@ export const TeacherDashboard = () => {
                 <div className="space-y-4">
                   {participants.map(p => (
                     <div key={p._id} className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
-                      {/* Tiêu đề Học viên */}
                       <div 
                         onClick={() => setExpandedStudentId(expandedStudentId === p._id ? null : p._id)}
                         className="flex items-center justify-between p-4 cursor-pointer hover:bg-blue-50 transition-colors"
@@ -135,24 +135,18 @@ export const TeacherDashboard = () => {
                         <div className="flex items-center gap-6">
                           <div className="text-right">
                             <p className="text-sm text-gray-500">Tiến độ khóa học</p>
-                            {p.status === 'completed' 
-                              ? <span className="text-green-600 font-bold text-sm">Đã hoàn thành</span>
-                              : <span className="text-yellow-600 font-bold text-sm">Đang học</span>
-                            }
+                            {p.status === 'completed' ? <span className="text-green-600 font-bold text-sm">Đã hoàn thành</span> : <span className="text-yellow-600 font-bold text-sm">Đang học</span>}
                           </div>
-                          <div className="bg-blue-100 text-blue-800 px-4 py-2 rounded-lg font-bold text-center">
-                            Tổng: {p.totalScore} điểm
-                          </div>
+                          <div className="bg-blue-100 text-blue-800 px-4 py-2 rounded-lg font-bold text-center">Tổng: {p.totalScore} điểm</div>
                           {expandedStudentId === p._id ? <ChevronUp className="text-gray-400"/> : <ChevronDown className="text-gray-400"/>}
                         </div>
                       </div>
 
-                      {/* Bảng điểm chi tiết khi mở rộng */}
                       {expandedStudentId === p._id && (
                         <div className="p-4 border-t border-gray-100 bg-gray-50/50">
                           <h4 className="font-bold text-gray-700 mb-3 text-sm uppercase tracking-wider">Chi tiết điểm số từng bài học:</h4>
                           <div className="space-y-3">
-                            {selectedCourse.chapters.map((chapter, cIdx) => (
+                            {selectedCourse.chapters.map((chapter) => (
                               <div key={chapter._id} className="border border-gray-200 bg-white rounded-lg p-3">
                                 <h5 className="font-bold text-blue-700 mb-2">{chapter.title}</h5>
                                 <div className="space-y-2 pl-4 border-l-2 border-blue-100 ml-2">
@@ -161,22 +155,14 @@ export const TeacherDashboard = () => {
                                       <h6 className="text-sm font-bold text-gray-600 mb-1">{section.title}</h6>
                                       <ul className="space-y-1">
                                         {section.lessons.map(lesson => {
-                                          // Tìm điểm của lesson này trong mảng progress của học sinh
                                           const progress = p.progress?.find(pr => pr.lessonId.toString() === lesson._id.toString());
-                                          
-                                          // Tính tổng điểm tối đa của bài học này
                                           const maxPoints = lesson.exercises?.reduce((sum, ex) => sum + (ex.points || 0), 0) || 0;
-
                                           return (
                                             <li key={lesson._id} className="flex justify-between items-center text-sm bg-gray-50 py-1.5 px-3 rounded">
                                               <span className="text-gray-700 truncate pr-4">- {lesson.title}</span>
                                               {progress ? (
-                                                <span className="font-bold text-green-600 whitespace-nowrap bg-green-100 px-2 py-0.5 rounded">
-                                                  {progress.score} / {maxPoints} điểm
-                                                </span>
-                                              ) : (
-                                                <span className="text-gray-400 italic text-xs whitespace-nowrap">Chưa làm bài</span>
-                                              )}
+                                                <span className="font-bold text-green-600 whitespace-nowrap bg-green-100 px-2 py-0.5 rounded">{progress.score} / {maxPoints} điểm</span>
+                                              ) : <span className="text-gray-400 italic text-xs whitespace-nowrap">Chưa làm bài</span>}
                                             </li>
                                           );
                                         })}

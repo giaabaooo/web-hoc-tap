@@ -4,17 +4,19 @@ import mongoose from 'mongoose';
 import dotenv from 'dotenv';
 import cors from 'cors';
 import authRoutes from './routes/auth.routes.js';
-import courseRoutes from './routes/course.routes.js'; // THÊM DÒNG NÀY
-import uploadRoutes from './routes/upload.routes.js'; // THÊM DÒNG NÀY
+import courseRoutes from './routes/course.routes.js'; 
+import uploadRoutes from './routes/upload.routes.js'; 
+import feedbackRoutes from './routes/feedback.routes.js'; // THÊM DÒNG NÀY
+import adminRoutes from './routes/admin.js';             // THÊM DÒNG NÀY
 import { seedAdmin } from './scripts/seedAdmin.js'; 
 
 dotenv.config();
-
 const app = express();
+
 const allowedOrigins = [
-  'http://localhost:5173',          // Môi trường Dev của bạn
-  process.env.CLIENT_URL,           // Từ biến môi trường (nếu có)
-  'https://tuhocvui.vn',            // Thay bằng domain Frontend của bạn
+  'http://localhost:5173',          
+  process.env.CLIENT_URL,           
+  'https://tuhocvui.vn',            
   'https://www.tuhocvui.vn'
 ].filter(Boolean);
 
@@ -28,34 +30,21 @@ app.use(cors({
   },
   credentials: true
 }));
-app.use((req, res, next) => {
-  res.setHeader('Cross-Origin-Opener-Policy', 'same-origin-allow-popups');
-  res.setHeader('Cross-Origin-Embedder-Policy', 'unsafe-none');
-  next();
-});
+
 app.use(express.json());
 
-// --- ĐĂNG KÝ CÁC ROUTES Ở ĐÂY ---
+// --- ĐĂNG KÝ CÁC ROUTES ---
 app.use('/api/auth', authRoutes);
-app.use('/api/courses', courseRoutes); // THÊM DÒNG NÀY ĐỂ FIX 404
-app.use('/api/upload', uploadRoutes);  // THÊM DÒNG NÀY ĐỂ FIX UPLOAD VIDEO
-
-app.get('/', (req, res) => {
-  res.send(' Backend API đang hoạt động! 🚀');
-});
+app.use('/api/courses', courseRoutes); 
+app.use('/api/upload', uploadRoutes);  
+app.use('/api/feedback', feedbackRoutes); // THÊM DÒNG NÀY (Học sinh gửi)
+app.use('/api/admin', adminRoutes);       // THÊM DÒNG NÀY (Admin quản lý)
 
 const PORT = process.env.PORT || 5000;
-
 mongoose.connect(process.env.MONGO_URI)
   .then(async () => {
     console.log('✅ Đã kết nối với MongoDB thành công');
-    
     await seedAdmin();
-
-    app.listen(PORT, () => {
-      console.log(`🚀 Server đang chạy tại http://localhost:${PORT}`);
-    });
+    app.listen(PORT, () => console.log(`🚀 Server đang chạy tại http://localhost:${PORT}`));
   })
-  .catch((error) => {
-    console.error('❌ Lỗi kết nối MongoDB:', error.message);
-  });
+  .catch((error) => console.error('❌ Lỗi kết nối MongoDB:', error.message));

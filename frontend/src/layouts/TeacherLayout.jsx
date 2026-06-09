@@ -2,7 +2,7 @@
 import React from 'react';
 import { Link, useLocation, Outlet, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store/useAuthStore';
-import { BookOpen, Users, BarChart2, Settings, LogOut } from 'lucide-react';
+import { BookOpen, Users, BarChart2, Settings, LogOut, Menu } from 'lucide-react';
 
 export const TeacherLayout = () => {
     const navigate = useNavigate();
@@ -16,64 +16,59 @@ export const TeacherLayout = () => {
 
     const menu = [
         { name: 'Quản lý khóa học', path: '/teacher-dashboard', icon: <BookOpen size={18} /> },
-        { name: 'Học viên của tôi', path: '/teacher-dashboard/students', icon: <Users size={18} /> },
-        { name: 'Thống kê doanh thu', path: '/teacher-dashboard/stats', icon: <BarChart2 size={18} /> },
-        { name: 'Cài đặt hồ sơ', path: '/teacher-dashboard/settings', icon: <Settings size={18} /> },
+        { name: 'Học viên', path: '/teacher-dashboard/students', icon: <Users size={18} /> },
+        { name: 'Doanh thu', path: '/teacher-dashboard/stats', icon: <BarChart2 size={18} /> },
+        { name: 'Cài đặt', path: '/teacher-dashboard/settings', icon: <Settings size={18} /> },
     ];
 
     return (
-        // Đã thay đổi: Dùng h-screen (bằng đúng chiều cao màn hình) và overflow-hidden
-        <div className="h-screen w-full flex overflow-hidden bg-surface-strong text-text-primary font-primary">
-
-            {/* Sidebar Giáo Viên - Bọc flex-shrink-0 để không bị ép nhỏ lại */}
-            <aside className="w-64 h-full flex-shrink-0 bg-surface-muted border-r border-border-default flex flex-col relative z-10 shadow-sm">
-                <div className="p-6 border-b border-border-default">
-                    <Link to="/" className="text-xl font-bold text-surface-raised flex items-center gap-2 outline-none focus-visible:ring-2 focus-visible:ring-surface-raised rounded">
-                        Tự Học Vui <span className="text-xs bg-orange-100 text-orange-600 px-2 py-1 rounded-full">Teacher</span>
-                    </Link>
-                </div>
-
-                {/* Nơi chứa menu, flex-1 giúp đẩy khu vực logout xuống tận cùng */}
-                <nav className="flex-1 p-4 space-y-2 overflow-y-auto custom-scrollbar">
-                    {menu.map((item) => {
-                        const isActive = location.pathname === item.path;
-                        return (
-                            <Link
-                                key={item.name} to={item.path}
-                                className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-colors outline-none focus-visible:ring-2 focus-visible:ring-surface-raised ${isActive ? 'bg-surface-raised text-surface-muted shadow-1' : 'text-text-tertiary hover:bg-surface-strong hover:text-text-primary'
-                                    }`}
-                            >
-                                {item.icon} {item.name}
-                            </Link>
-                        );
-                    })}
-                </nav>
-
-                {/* Khu vực Logout được đẩy xuống cố định */}
-                <div className="p-4 border-t border-border-default mt-auto">
-                    <div className="flex items-center gap-3 mb-4 px-2">
-                        <img
-                            src={user?.avatar || "https://via.placeholder.com/40"}
-                            alt="Avatar"
-                            onError={(e) => { e.target.onerror = null; e.target.src = "https://via.placeholder.com/40"; }}
-                            className="w-10 h-10 rounded-full border border-border-default object-cover"
-                        />
-                        <div className="overflow-hidden">
-                            <p className="text-sm font-semibold truncate">{user?.displayName}</p>
-                            <p className="text-xs text-text-tertiary truncate">{user?.email}</p>
-                        </div>
+        <div className="min-h-screen w-full flex flex-col bg-[#f8fafc] text-gray-800 font-sans">
+            {/* TOP NAVBAR */}
+            <header className="bg-white border-b border-gray-200 sticky top-0 z-50 shadow-sm">
+                <div className="max-w-[1400px] mx-auto px-4 h-16 flex items-center justify-between">
+                    <div className="flex items-center gap-8">
+                        <Link to="/" className="text-xl font-bold text-blue-600 flex items-center gap-2">
+                            Tự Học Vui <span className="text-xs bg-orange-100 text-orange-600 px-2 py-1 rounded-full font-semibold">Teacher</span>
+                        </Link>
+                        
+                        {/* NAV LINKS */}
+                        <nav className="hidden md:flex items-center space-x-1">
+                            {menu.map((item) => {
+                                const isActive = location.pathname === item.path;
+                                return (
+                                    <Link
+                                        key={item.name} to={item.path}
+                                        className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${isActive ? 'bg-blue-50 text-blue-600' : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'}`}
+                                    >
+                                        {item.icon} {item.name}
+                                    </Link>
+                                );
+                            })}
+                        </nav>
                     </div>
-                    <button
-                        onClick={handleLogout}
-                        className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-red-50 text-red-600 hover:bg-red-100 rounded-lg text-sm font-medium transition-colors outline-none focus-visible:ring-2 focus-visible:ring-red-500"
-                    >
-                        <LogOut size={18} /> Đăng xuất
-                    </button>
-                </div>
-            </aside>
 
-            {/* Main Content - Nơi chứa Outlet. Để thẻ main cuộn (overflow-y-auto) thay vì cả trang cuộn */}
-            <main className="flex-1 h-full p-8 overflow-y-auto custom-scrollbar relative">
+                    {/* USER PROFILE & LOGOUT */}
+                    <div className="flex items-center gap-4">
+                        <div className="hidden sm:flex items-center gap-3 pr-4 border-r border-gray-200">
+                            <div className="text-right">
+                                <p className="text-sm font-bold text-gray-800 leading-tight">{user?.displayName}</p>
+                                <p className="text-xs text-gray-500">{user?.email}</p>
+                            </div>
+                            <img
+                                src={user?.avatar || "https://via.placeholder.com/40"}
+                                alt="Avatar"
+                                className="w-9 h-9 rounded-full border border-gray-200 object-cover"
+                            />
+                        </div>
+                        <button onClick={handleLogout} className="flex items-center gap-2 text-sm font-medium text-red-500 hover:text-red-600 hover:bg-red-50 px-3 py-2 rounded-lg transition-colors">
+                            <LogOut size={18} /> Đăng xuất
+                        </button>
+                    </div>
+                </div>
+            </header>
+
+            {/* MAIN CONTENT AREA */}
+            <main className="flex-1 w-full max-w-[1400px] mx-auto p-4 md:p-6 lg:p-8">
                 <Outlet />
             </main>
         </div>

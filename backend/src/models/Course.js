@@ -7,34 +7,36 @@ const exerciseSchema = new mongoose.Schema({
     enum: ['multiple_choice', 'speaking', 'listening', 'flashcard', 'vocab', 'matching', 'fill_blank','essay'], 
     required: true 
   },
-  instruction: { type: String, default: '' }, // ĐÃ BỔ SUNG TRƯỜNG NÀY
-  question: { type: String, required: true },
+  instruction: { type: String, default: '' },
+  question: { type: String, default: '' }, // Nới lỏng để lưu nháp
   options: [{ type: String }], 
-  correctAnswer: { type: String, required: true }, 
+  correctAnswer: { type: String, default: '' }, // Nới lỏng để lưu nháp
   points: { type: Number, default: 10 }, 
-  contentUrl: { type: String }
+  contentUrl: { type: String },
+  startTime: { type: Number, default: 0 }, 
+  endTime: { type: Number, default: 0 }
 });
 
 const lessonSchema = new mongoose.Schema({
-  title: { type: String, required: true },
+  title: { type: String, default: '' }, // Nới lỏng để lưu nháp
   type: { type: String, enum: ['video_upload', 'youtube', 'image', 'document'], default: 'video_upload' },
-  contentUrl: { type: String }, 
+  contentUrl: { type: String, default: '' }, 
   duration: { type: Number, default: 0 }, 
   exercises: [exerciseSchema]
 });
 
 const sectionSchema = new mongoose.Schema({
-  title: { type: String, required: true },
+  title: { type: String, default: '' }, // Nới lỏng để lưu nháp
   lessons: [lessonSchema]
 });
 
 const chapterSchema = new mongoose.Schema({
-  title: { type: String, required: true }, 
+  title: { type: String, default: '' }, // Nới lỏng để lưu nháp
   sections: [sectionSchema] 
 });
 
 const courseSchema = new mongoose.Schema({
-  title: { type: String, required: true },
+  title: { type: String, required: true }, // Tên khóa học là bắt buộc duy nhất
   description: { type: String, default: '' },
   thumbnail: { type: String, default: '' },
   subject: { type: String, required: true, default: 'Khác' },

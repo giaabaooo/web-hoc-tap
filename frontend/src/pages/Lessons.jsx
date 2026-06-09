@@ -34,7 +34,6 @@ export const Lessons = () => {
           image: course.thumbnail || getSubjectImage(course.subject),
           price: !course.price || course.price === 0 ? "Miễn phí" : `${Number(course.price).toLocaleString('vi-VN')} đ`,
           status: course.isPublished ? "Đã xuất bản" : "Bản nháp",
-          // ĐÃ LẤY SỐ NGÀY HỌC THẬT TỪ DATABASE
           time: course.chapters?.length ? `${course.chapters.length} ngày` : "0 ngày",
           views: course.views || 0,
           lessons: course.chapters?.reduce((acc, chap) => acc + (chap.sections?.length || 0), 0) || 0
@@ -171,7 +170,16 @@ export const Lessons = () => {
                       className="bg-surface-muted rounded-2xl overflow-hidden shadow-1 border border-border-default hover:shadow-2 transition-all cursor-pointer flex flex-col group"
                     >
                       <div className="relative h-44 overflow-hidden bg-surface-strong">
-                        <img src={course.image} alt={course.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
+                        {/* FIX ẢNH BỊ LỖI Ở ĐÂY */}
+                        <img 
+                          src={course.image} 
+                          alt={course.title} 
+                          onError={(e) => { 
+                            e.target.onerror = null; 
+                            e.target.src = getSubjectImage(course.subject); 
+                          }}
+                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" 
+                        />
                         <span className="absolute top-3 left-3 bg-green-100 text-green-700 px-3 py-1 rounded-full text-xs font-bold shadow-sm">{course.price}</span>
                         <span className="absolute top-3 right-3 bg-surface-raised text-white px-3 py-1 rounded-full text-xs font-bold shadow-sm">{course.status}</span>
                       </div>
