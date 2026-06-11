@@ -1,12 +1,25 @@
 // models/Course.js
 import mongoose from 'mongoose';
 
+// Tầng 2: Câu hỏi nhỏ
 const subQuestionSchema = new mongoose.Schema({
   question: { type: String, default: '' },
   options: [{ type: String }],
-  correctAnswer: { type: String, default: '' }
+  correctAnswer: { type: String, default: '' },
+  points: { type: Number, default: 10 }, 
+  contentUrl: { type: String, default: '' },
+  audioUrl: { type: String, default: '' } 
 });
 
+// Tầng 1: Nhóm câu hỏi (Câu hỏi lớn) - CHỖ NÀY LÀ ĐIỂM FIX QUAN TRỌNG NHẤT
+const questionGroupSchema = new mongoose.Schema({
+  question: { type: String, default: '' }, 
+  contentUrl: { type: String, default: '' },
+  audioUrl: { type: String, default: '' },
+  subQuestions: [subQuestionSchema]
+});
+
+// Block Bài tập
 const exerciseSchema = new mongoose.Schema({
   type: { 
     type: String, 
@@ -14,16 +27,11 @@ const exerciseSchema = new mongoose.Schema({
     required: true 
   },
   instruction: { type: String, default: '' },
-  question: { type: String, default: '' }, 
-  passage: { type: String, default: '' }, // Dành cho bài Reading
-  subQuestions: [subQuestionSchema], // Câu hỏi phụ cho bài Reading
-  options: [{ type: String }], // Mảng động không giới hạn
-  correctAnswer: { type: String, default: '' }, 
-  points: { type: Number, default: 10 }, 
-  contentUrl: { type: String },
-  audioUrl: { type: String }, // Dành cho âm thanh mặt sau Flashcard
+  passage: { type: String, default: '' }, 
+  contentUrl: { type: String, default: '' },
   startTime: { type: Number, default: 0 }, 
-  endTime: { type: Number, default: 0 }
+  endTime: { type: Number, default: 0 },
+  questions: [questionGroupSchema] // Lồng mảng câu hỏi lớn vào đây
 });
 
 const lessonSchema = new mongoose.Schema({

@@ -1,7 +1,6 @@
 // controllers/course.controller.js
 import { Course } from '../models/Course.js';
 import { Enrollment } from '../models/Enrollment.js';
-import mongoose from 'mongoose';
 
 export const createCourse = async (req, res) => {
   try {
@@ -12,7 +11,11 @@ export const createCourse = async (req, res) => {
 };
 
 export const updateCourse = async (req, res) => {
-  try { res.status(200).json(await Course.findByIdAndUpdate(req.params.id, req.body, { new: true })); } 
+  try { 
+    const updatedCourse = await Course.findByIdAndUpdate(req.params.id, req.body, { new: true });
+    if (!updatedCourse) return res.status(404).json({ message: 'Không tìm thấy khoá học' });
+    res.status(200).json(updatedCourse); 
+  } 
   catch (error) { res.status(500).json({ message: 'Lỗi cập nhật' }); }
 };
 
@@ -37,7 +40,9 @@ export const getCourseById = async (req, res) => {
 export const deleteCourse = async (req, res) => {
   try {
     const course = await Course.findById(req.params.id);
-    if (!course || (course.teacher.toString() !== req.user._id.toString() && req.user.role !== 'admin')) return res.status(403).json({ message: 'Không quyền' });
+    if (!course || (course.teacher.toString() !== req.user._id.toString() && req.user.role !== 'admin')) {
+      return res.status(403).json({ message: 'Không có quyền xoá' });
+    }
     await Course.findByIdAndDelete(req.params.id);
     await Enrollment.deleteMany({ course: req.params.id }); 
     res.status(200).json({ message: 'Xóa thành công!' });
@@ -75,45 +80,44 @@ export const submitLesson = async (req, res) => {
 
     let score = 0;
     
+    // LOGIC CHẤM ĐIỂM CẬP NHẬT THEO CẤU TRÚC 2 TẦNG (GIỐNG HỆT BÊN FRONTEND)
     if (targetLesson.exercises && targetLesson.exercises.length > 0) {
       targetLesson.exercises.forEach(ex => {
-        const studentAns = answers[ex._id.toString()];
-        
-        // Nếu học sinh bỏ trống thì chỉ cộng điểm cho tự luận (do chưa có GV chấm)
-        if (studentAns === undefined || studentAns === null || studentAns === '') {
-           if (ex.type === 'essay') score += (ex.points || 10);
-           return; 
-        }
-        
-        const maxPts = ex.points || 10;
-        
-        if (ex.type === 'speaking') {
-           if (studentAns.score !== undefined) score += studentAns.score;
-        } else if (ex.type === 'reading') {
-           if (typeof studentAns === 'object') {
-             let correctCount = 0;
-             ex.subQuestions.forEach((sq, idx) => {
-               if (studentAns[idx] === sq.correctAnswer) correctCount++;
-             });
-             score += Math.round((correctCount / (ex.subQuestions.length || 1)) * maxPts);
-           }
-        } else if (ex.type === 'matching') {
-           if (typeof studentAns === 'object') {
-              const rightOriginals = ex.options.map(opt => opt.split('|')[1]);
-              let correctCount = 0;
-              ex.options.forEach((_, i) => {
-                 if (studentAns[i] === rightOriginals[i]) correctCount++;
-              });
-              if (correctCount === ex.options.length) score += maxPts;
-           }
-        } else if (ex.type === 'essay') {
-           score += maxPts; 
-        } else {
-           const ansStr = typeof studentAns === 'object' ? (studentAns.choice || '') : studentAns;
-           if (ansStr.toString().trim().toLowerCase() === (ex.correctAnswer || '').toString().trim().toLowerCase()) {
-              score += maxPts;
-           }
-        }
+        const studentAnsObj = answers[ex._id.toString()];
+        if (!studentAnsObj || typeof studentAnsObj !== 'object') return;
+
+        ex.questions?.forEach((qGroup, qIdx) => {
+           qGroup.subQuestions?.forEach((sq, sqIdx) => {
+              const ansKey = `${qIdx}-${sqIdx}`;
+              const ans = studentAnsObj[ansKey];
+              if (!ans) return;
+              
+              const maxPts = sq.points || 10;
+              
+              switch(ex.type) {
+                case 'speaking':
+                  score += ans.score || 0; break;
+                case 'matching': {
+                  if (typeof ans === 'object') {
+                    const rightOriginals = sq.options?.map(opt => opt.split('|')[1]) || [];
+                    let correctCount = 0;
+                    sq.options?.forEach((_, i) => { if (ans[i] === rightOriginals[i]) correctCount++; });
+                    if (correctCount === (sq.options?.length || 1)) score += maxPts; 
+                  }
+                  break;
+                }
+                case 'essay':
+                  score += maxPts; break; 
+                default: { 
+                  // multiple_choice, fill_blank, listening, flashcard, reading
+                  const ansStr = typeof ans === 'object' ? (ans.choice || '') : ans;
+                  if (ansStr.toString().trim().toLowerCase() === (sq.correctAnswer || '').toString().trim().toLowerCase()) {
+                     score += maxPts;
+                  }
+                }
+              }
+           });
+        });
       });
     }
 
@@ -153,12 +157,12 @@ export const getCourseParticipants = async (req, res) => {
     res.status(200).json({ course, enrollments });
   } catch (error) { res.status(500).json({ message: 'Lỗi tải thống kê' }); }
 };
+
 export const getMyEnrolledCourses = async (req, res) => {
   try {
-    // Tìm các enrollment của học sinh này và populate lấy thông tin chi tiết khóa học
     const enrollments = await Enrollment.find({ student: req.user._id })
       .populate('course')
-      .sort({ createdAt: -1 }); // Mới nhất lên đầu
+      .sort({ createdAt: -1 }); 
       
     res.status(200).json(enrollments);
   } catch (error) { 

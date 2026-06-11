@@ -27,10 +27,10 @@ export const Home = () => {
             <Sparkles className="w-4 h-4" /> Góc học tập
           </div>
           <h2 className="text-3xl md:text-4xl font-extrabold text-[#0a192f] mb-4 tracking-tight">
-            Chọn một chương trình, bắt đầu học vui
+            TÍNH NĂNG NỔI BẬT
           </h2>
           <p className="text-gray-500 text-lg">
-            Mỗi phần được thiết kế để con dễ vào học, phụ huynh dễ hiểu con đang luyện kỹ năng nào.
+            Khám phá ngay những bài học thú vị và được yêu thích nhất tại Tự Học Vui!
           </p>
         </div>
 

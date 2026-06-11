@@ -6,91 +6,104 @@ import { toast } from 'react-toastify';
 import { useAuthStore } from '../store/useAuthStore';
 import { ChevronDown, ChevronRight, PlayCircle, FileText, CheckCircle2, Mic, Edit3, Loader2, ChevronLeft, ChevronRight as IconNext, Volume2, RotateCcw, ArrowLeft, BookOpen, PenTool } from 'lucide-react';
 
+// MOCK DATA: Đã chuẩn hóa theo cấu trúc 2 tầng (Group -> SubQuestions)
 const MOCK_COURSE = {
-  _id: "mock-1", title: "Khóa Học Demo Full UI Mới", description: "Bản demo hiển thị tất cả các loại câu hỏi, bôi xanh/đỏ đáp án, flashcard audio, bài tập Reading tổng hợp.", price: 0, views: 9999,
-  chapters: [{ _id: "chap-1", title: "Ngày 1", sections: [{ _id: "sec-1", title: "Unit 1 - Buổi 1", lessons: [{ _id: "les-1", title: "Bài hát ABC | Chun Chin | Nhạc thiếu nhi vui nhộn", type: "youtube", contentUrl: "https://www.youtube.com/watch?v=5mGUXKcE61c",
+  _id: "mock-1", title: "Khóa Học Demo (Cấu trúc 2 tầng)", description: "Bản demo hiển thị tất cả các loại câu hỏi theo cấu trúc nhóm câu hỏi mới.", price: 0, views: 9999,
+  chapters: [{ _id: "chap-1", title: "Ngày 1", sections: [{ _id: "sec-1", title: "Unit 1 - Buổi 1", lessons: [{ _id: "les-1", title: "Bài hát ABC | Nhạc thiếu nhi vui nhộn", type: "youtube", contentUrl: "https://www.youtube.com/watch?v=5mGUXKcE61c",
     exercises: [
-      { _id: "ex-read", type: "reading", instruction: "Đọc đoạn văn sau và trả lời các câu hỏi.", passage: "https://images.unsplash.com/photo-1503676260728-1c00da094a0b?w=500", points: 20, subQuestions: [{ question: "Where does Sarah go?", options: ["park", "store", "school"], correctAnswer: "park" }, { question: "Who does she go with?", options: ["dad", "mom", "friend"], correctAnswer: "mom" }] },
-      { _id: "ex-speak", type: "speaking", question: "Cry", instruction: "Bấm nút Mic và đọc to từ vựng", points: 10, options: [], correctAnswer: "Cry" },
-      { _id: "ex-match", type: "matching", question: "Nối từ với hình ảnh tương ứng", points: 20, options: ["Apple|https://images.unsplash.com/photo-1560806887-1e4cd0b6faa6?w=200", "Banana|https://images.unsplash.com/photo-1528825871115-3581a5387919?w=200", "Car|https://images.unsplash.com/photo-1518022525094-71848f7642bb?w=200"] },
-      { _id: "ex-flash", type: "flashcard", question: "https://images.unsplash.com/photo-1560806887-1e4cd0b6faa6?w=400", correctAnswer: "Apple", audioUrl: "https://actions.google.com/sounds/v1/alarms/beep_short.ogg", points: 10 },
-      { _id: "ex-mcq", type: "multiple_choice", question: "1 + 1 bằng mấy?", options: ["2", "https://images.unsplash.com/photo-1518022525094-71848f7642bb?w=200"], correctAnswer: "2", points: 10 }
+      { _id: "ex-read", type: "reading", instruction: "Đọc đoạn văn sau và trả lời các câu hỏi.", 
+        questions: [{ question: "Sarah goes to the park with her mom.", contentUrl: "", audioUrl: "", subQuestions: [
+          { question: "Where does Sarah go?", options: ["park", "store", "school"], correctAnswer: "park", points: 10 }, 
+          { question: "Who does she go with?", options: ["dad", "mom", "friend"], correctAnswer: "mom", points: 10 }
+        ]}] 
+      },
+      { _id: "ex-mcq", type: "multiple_choice", instruction: "Chọn đáp án đúng nhất", 
+        questions: [{ question: "Nhìn hình và chọn đáp án", contentUrl: "https://images.unsplash.com/photo-1518022525094-71848f7642bb?w=200", subQuestions: [
+          { question: "Đây là con gì?", options: ["Mèo", "Chó", "Heo"], correctAnswer: "Mèo", points: 10 }
+        ]}] 
+      }
     ]
   }]}]}]
 };
 
 const getTypeLabel = (type) => {
   switch (type) {
-    case 'multiple_choice': return 'Trắc nghiệm (Multiple Choice)';
-    case 'fill_blank': return 'Điền vào chỗ trống (Fill Blank)';
-    case 'speaking': return 'Luyện nói AI (Speaking)';
-    case 'listening': return 'Luyện nghe (Listening)';
-    case 'matching': return 'Nối từ (Matching)';
-    case 'flashcard': return 'Thẻ từ vựng (Flashcard)';
-    case 'reading': return 'Bài đọc hiểu (Reading)';
-    case 'essay': return 'Tự luận (Essay)';
+    case 'multiple_choice': return 'Trắc nghiệm';
+    case 'fill_blank': return 'Điền từ';
+    case 'speaking': return 'Luyện nói';
+    case 'listening': return 'Luyện nghe';
+    case 'matching': return 'Nối từ';
+    case 'flashcard': return 'Flashcard';
+    case 'reading': return 'Đọc hiểu';
+    case 'essay': return 'Tự luận';
     default: return 'Bài tập';
   }
 };
 
-// HÀM TÍNH ĐIỂM CHUẨN XÁC DÙNG CHUNG CHO FRONTEND (Cả Mock lẫn render UI)
-const calculateExerciseScore = (ex, studentAns) => {
-  if (studentAns === undefined || studentAns === null || studentAns === '') return 0;
-  const maxPts = ex.points || 10;
+// HÀM TÍNH ĐIỂM DỰA TRÊN CẤU TRÚC 2 TẦNG (Lặp qua từng Nhóm câu hỏi -> Ý nhỏ)
+const calculateExerciseScore = (ex, studentAnsObj) => {
+  if (!studentAnsObj || typeof studentAnsObj !== 'object') return 0;
+  let totalScore = 0;
   
-  switch(ex.type) {
-    case 'speaking':
-      return studentAns.score || 0;
-    case 'reading': {
-      if (typeof studentAns !== 'object') return 0;
-      let correctCount = 0;
-      ex.subQuestions?.forEach((sq, idx) => {
-        if (studentAns[idx] === sq.correctAnswer) correctCount++;
-      });
-      return Math.round((correctCount / (ex.subQuestions?.length || 1)) * maxPts);
-    }
-    case 'matching': {
-      if (typeof studentAns !== 'object') return 0;
-      const rightOriginals = ex.options?.map(opt => opt.split('|')[1]) || [];
-      let correctCount = 0;
-      ex.options?.forEach((_, i) => {
-        if (studentAns[i] === rightOriginals[i]) correctCount++;
-      });
-      return correctCount === (ex.options?.length || 1) ? maxPts : 0; 
-    }
-    case 'essay':
-      return maxPts; 
-    default: { // multiple_choice, fill_blank, listening, flashcard
-      const ansStr = typeof studentAns === 'object' ? (studentAns.choice || '') : studentAns;
-      return ansStr.toString().trim().toLowerCase() === (ex.correctAnswer || '').toString().trim().toLowerCase() ? maxPts : 0;
-    }
-  }
+  ex.questions?.forEach((qGroup, qIdx) => {
+     qGroup.subQuestions?.forEach((sq, sqIdx) => {
+        const ansKey = `${qIdx}-${sqIdx}`;
+        const ans = studentAnsObj[ansKey];
+        if (!ans) return;
+        const maxPts = sq.points || 10;
+        
+        switch(ex.type) {
+          case 'speaking':
+            totalScore += ans.score || 0; break;
+          case 'matching': {
+            if (typeof ans === 'object') {
+              const rightOriginals = sq.options?.map(opt => opt.split('|')[1]) || [];
+              let correctCount = 0;
+              sq.options?.forEach((_, i) => { if (ans[i] === rightOriginals[i]) correctCount++; });
+              if (correctCount === (sq.options?.length || 1)) totalScore += maxPts; 
+            }
+            break;
+          }
+          case 'essay':
+            totalScore += maxPts; break; 
+          default: { 
+            const ansStr = typeof ans === 'object' ? (ans.choice || '') : ans;
+            if (ansStr.toString().trim().toLowerCase() === (sq.correctAnswer || '').toString().trim().toLowerCase()) {
+               totalScore += maxPts;
+            }
+          }
+        }
+     });
+  });
+  return totalScore;
 };
 
+// Hàm render đa phương tiện (Ảnh, Audio hoặc Text)
 const RenderMediaOrText = ({ content }) => {
   if (!content) return null;
-  if (content.startsWith('http')) return <img src={content} alt="Media" className="max-h-32 w-auto object-contain rounded shadow-sm mx-auto" />;
+  const isAudio = content.match(/\.(mp3|wav|ogg)$/i);
+  if (content.startsWith('http')) {
+     if (isAudio) return <audio src={content} controls className="h-10 w-full outline-none mt-2" />;
+     return <img src={content} alt="Media" className="max-h-32 w-auto object-contain rounded shadow-sm mx-auto my-2" />;
+  }
   return <span className="font-semibold text-gray-700 leading-relaxed text-sm md:text-base">{content}</span>;
 };
 
 // --- COMPONENT MATCHING ---
-const InteractiveMatching = ({ exercise, value = {}, onChange, isSubmitted }) => {
+const InteractiveMatching = ({ sq, value = {}, onChange, isSubmitted }) => {
   const [shuffledRight, setShuffledRight] = useState([]);
   const [selectedLeft, setSelectedLeft] = useState(null);
 
-  const leftItems = exercise.options.map(opt => opt.split('|')[0]);
-  const rightOriginals = exercise.options.map(opt => opt.split('|')[1]);
+  const leftItems = sq.options?.map(opt => opt.split('|')[0]) || [];
+  const rightOriginals = sq.options?.map(opt => opt.split('|')[1]) || [];
 
   useEffect(() => {
-    const rights = exercise.options.map(opt => opt.split('|')[1]).filter(Boolean);
+    const rights = sq.options?.map(opt => opt.split('|')[1]).filter(Boolean) || [];
     const shuffled = [...rights].sort(() => Math.random() - 0.5);
     setShuffledRight(shuffled);
-  }, [exercise.options]);
+  }, [sq.options]);
 
-  const handleLeftClick = (index) => {
-    if (isSubmitted) return;
-    setSelectedLeft(selectedLeft === index ? null : index);
-  };
+  const handleLeftClick = (index) => { if (isSubmitted) return; setSelectedLeft(selectedLeft === index ? null : index); };
 
   const handleRightClick = (rightItem) => {
     if (isSubmitted || selectedLeft === null) return;
@@ -102,7 +115,7 @@ const InteractiveMatching = ({ exercise, value = {}, onChange, isSubmitted }) =>
   };
 
   return (
-    <div className="flex flex-col md:flex-row gap-6 mt-4">
+    <div className="flex flex-col md:flex-row gap-6 mt-4 border border-gray-200 bg-gray-50/50 p-4 rounded-xl">
       <div className="flex-1 space-y-3">
         <h5 className="font-bold text-center text-blue-600 mb-3 uppercase tracking-wider text-sm">CỘT A (Nội dung)</h5>
         {leftItems.map((leftItem, i) => {
@@ -149,7 +162,7 @@ const InteractiveMatching = ({ exercise, value = {}, onChange, isSubmitted }) =>
 };
 
 // --- COMPONENT SPEAKING ---
-const InteractiveSpeaking = ({ exercise, value, onChange, isSubmitted }) => {
+const InteractiveSpeaking = ({ sq, value, onChange, isSubmitted }) => {
   const [isRecording, setIsRecording] = useState(false);
   const [transcript, setTranscript] = useState(value?.transcript || "");
   const [audioUrl, setAudioUrl] = useState(value?.url || null);
@@ -160,22 +173,18 @@ const InteractiveSpeaking = ({ exercise, value, onChange, isSubmitted }) => {
   const audioChunks = useRef([]);
   const speechRecognition = useRef(null);
 
-  const maxPoints = exercise.points || 10;
-  const currentTarget = (exercise.options && exercise.options.length > 0) ? selectedChoice : exercise.correctAnswer;
+  const maxPoints = sq.points || 10;
+  const currentTarget = (sq.options && sq.options.length > 0) ? selectedChoice : sq.correctAnswer;
 
   const calculateScore = (spoken, target) => {
     if (!spoken || !target) return 0;
     const s = String(spoken).toLowerCase().replace(/[^\p{L}\p{N}\s]/gu, '').replace(/\s+/g, ' ').trim();
     const t = String(target).toLowerCase().replace(/[^\p{L}\p{N}\s]/gu, '').replace(/\s+/g, ' ').trim();
-
     if (s === t) return maxPoints;
     const sWords = s.split(' ');
     const tWords = t.split(' ');
     const matchCount = sWords.filter(w => tWords.includes(w)).length;
-
-    if (s.includes(t) || t.includes(s) || matchCount >= Math.ceil(tWords.length / 2)) {
-      return Math.floor(maxPoints * 0.5);
-    }
+    if (s.includes(t) || t.includes(s) || matchCount >= Math.ceil(tWords.length / 2)) return Math.floor(maxPoints * 0.5);
     return 0;
   };
 
@@ -188,21 +197,16 @@ const InteractiveSpeaking = ({ exercise, value, onChange, isSubmitted }) => {
       speechRecognition.current.lang = 'en-US'; 
       speechRecognition.current.interimResults = false;
       speechRecognition.current.maxAlternatives = 1;
-      speechRecognition.current.onresult = (event) => {
-        const resultText = event.results[0][0].transcript;
-        setTranscript(resultText); 
-      };
+      speechRecognition.current.onresult = (event) => { setTranscript(event.results[0][0].transcript); };
     }
   }, [selectedChoice]);
 
   useEffect(() => {
-    if (audioUrl && transcript) {
-       onChange({ url: audioUrl, transcript, score, choice: selectedChoice, attempts });
-    }
+    if (audioUrl && transcript) { onChange({ url: audioUrl, transcript, score, choice: selectedChoice, attempts }); }
   }, [audioUrl, transcript, selectedChoice, score, attempts]);
 
   const startRecording = async () => {
-    if (exercise.options && exercise.options.length > 0 && !selectedChoice) return toast.warning("Vui lòng chọn 1 đáp án trước khi đọc!");
+    if (sq.options && sq.options.length > 0 && !selectedChoice) return toast.warning("Vui lòng chọn 1 đáp án trước khi đọc!");
     if (attempts >= 3) return toast.warning("Đã hết số lần thu âm cho câu hỏi này!");
     if (!speechRecognition.current) return toast.error("Trình duyệt không hỗ trợ AI. Khuyên dùng Chrome!");
     try {
@@ -237,18 +241,18 @@ const InteractiveSpeaking = ({ exercise, value, onChange, isSubmitted }) => {
     onChange({ choice: selectedChoice, attempts });
   };
 
-  const hasOptions = exercise.options && exercise.options.length > 0;
+  const hasOptions = sq.options && sq.options.length > 0;
 
   return (
-    <div className="py-2 text-center">
-      <h4 className="text-2xl font-bold text-blue-600 mb-8 uppercase tracking-widest leading-relaxed text-center">"{exercise.question}"</h4>
+    <div className="py-2 text-center bg-white p-4 rounded-xl border border-gray-200">
+      {sq.question && <h4 className="text-xl font-bold text-blue-600 mb-6 uppercase tracking-widest leading-relaxed text-center">"{sq.question}"</h4>}
       
       {hasOptions && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-8 text-left">
-          {exercise.options.map((opt, i) => {
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-6 text-left">
+          {sq.options.map((opt, i) => {
             let stateClass = "border-gray-200 hover:bg-blue-50 cursor-pointer bg-white";
             if (isSubmitted) {
-               if (opt === exercise.correctAnswer) stateClass = "border-green-500 bg-green-50"; 
+               if (opt === sq.correctAnswer) stateClass = "border-green-500 bg-green-50"; 
                else if (opt === selectedChoice) stateClass = "border-red-400 bg-red-50"; 
             } else if (selectedChoice === opt) stateClass = "border-blue-500 bg-blue-50";
 
@@ -275,7 +279,6 @@ const InteractiveSpeaking = ({ exercise, value, onChange, isSubmitted }) => {
           ) : (
             <div className="flex flex-col items-center max-w-lg mx-auto w-full bg-[#f8faff] p-6 sm:p-8 rounded-[24px] shadow-[0_4px_20px_rgb(0,0,0,0.04)] border border-blue-50">
               <audio src={audioUrl} controls className="w-full mb-6 outline-none" />
-              
               <div className="w-full text-left bg-white p-5 rounded-2xl border border-gray-100 mb-6 shadow-sm">
                  <p className="text-[11px] font-extrabold text-gray-400 uppercase tracking-widest mb-3">AI Nghe được:</p>
                  <p className="text-gray-800 font-bold italic text-lg mb-4">"{transcript || "Không nghe rõ..."}"</p>
@@ -283,15 +286,10 @@ const InteractiveSpeaking = ({ exercise, value, onChange, isSubmitted }) => {
                     Điểm AI Chấm: {score} / {maxPoints}
                  </div>
               </div>
-
               {!isSubmitted && (
                 <div className="flex flex-col sm:flex-row gap-4 w-full">
-                  <button onClick={retryRecording} disabled={attempts >= 3} className={`flex-1 text-[13px] font-bold py-3.5 rounded-xl transition-all ${attempts < 3 ? 'text-red-500 bg-[#ffeceb] hover:bg-[#ffdfdc]' : 'text-gray-400 bg-gray-100 cursor-not-allowed'}`}>
-                    Thu âm lại (Còn {3 - attempts} lần)
-                  </button>
-                  <div className="flex-1 text-[13px] font-bold text-green-700 bg-[#e6fbf0] py-3.5 rounded-xl flex items-center justify-center">
-                    Đã lưu bản ghi âm
-                  </div>
+                  <button onClick={retryRecording} disabled={attempts >= 3} className={`flex-1 text-[13px] font-bold py-3.5 rounded-xl transition-all ${attempts < 3 ? 'text-red-500 bg-[#ffeceb] hover:bg-[#ffdfdc]' : 'text-gray-400 bg-gray-100 cursor-not-allowed'}`}>Thu âm lại (Còn {3 - attempts} lần)</button>
+                  <div className="flex-1 text-[13px] font-bold text-green-700 bg-[#e6fbf0] py-3.5 rounded-xl flex items-center justify-center">Đã lưu bản ghi âm</div>
                 </div>
               )}
             </div>
@@ -324,6 +322,39 @@ export const CourseDetail = () => {
 
   useEffect(() => { window.scrollTo(0, 0); }, []);
 
+  // --- HÀM CHUẨN HÓA DATA: Giúp CourseDetail đọc mượt cả Khóa học Mới lẫn Khóa học Cũ ---
+  const normalizeCourseData = (data) => {
+    if (!data) return data;
+    const newData = JSON.parse(JSON.stringify(data));
+    newData.chapters?.forEach(ch => {
+      ch.sections?.forEach(sec => {
+        sec.lessons?.forEach(les => {
+          les.exercises?.forEach(ex => {
+            // Nếu là bài cũ (không có array questions) -> Gói nó vào 1 group
+            if (!ex.questions || ex.questions.length === 0) {
+              const oldOpts = ex.options || [];
+              const oldCorrect = ex.correctAnswer || '';
+              const oldSubQ = ex.subQuestions || [];
+              
+              if (ex.type === 'reading') {
+                ex.questions = [{ 
+                  question: ex.passage || '', contentUrl: '', audioUrl: '', 
+                  subQuestions: oldSubQ.map(sq => ({...sq, points: sq.points || 10, contentUrl: '', audioUrl: ''})) 
+                }];
+              } else {
+                ex.questions = [{
+                  question: ex.question || '', contentUrl: ex.contentUrl || '', audioUrl: ex.audioUrl || '',
+                  subQuestions: [{ question: '', options: oldOpts, correctAnswer: oldCorrect, points: ex.points || 10, contentUrl: '', audioUrl: '' }]
+                }];
+              }
+            }
+          });
+        });
+      });
+    });
+    return newData;
+  };
+
   useEffect(() => {
     const fetchCourseDetail = async () => {
       try {
@@ -333,23 +364,22 @@ export const CourseDetail = () => {
            const firstChapter = MOCK_COURSE.chapters[0];
            const firstSection = firstChapter?.sections[0];
            const firstLesson = firstSection?.lessons[0];
-
            if (firstChapter) setExpandedChapters([firstChapter._id]);
            if (firstSection) setExpandedSections([firstSection._id]);
-           if (firstLesson) {
-             setActiveLesson(firstLesson);
-             setExpandedLessons([firstLesson._id]); 
-           }
+           if (firstLesson) { setActiveLesson(firstLesson); setExpandedLessons([firstLesson._id]); }
         } else {
           const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
           const response = await axios.get(`${API_URL}/api/courses/${id}`);
-          setCourseData(response.data.course);
           
-          if (response.data.course?.chapters?.length > 0) {
-            setExpandedChapters([response.data.course.chapters[0]._id]);
-            if (response.data.course.chapters[0].sections?.length > 0) {
-               setExpandedSections([response.data.course.chapters[0].sections[0]._id]);
-               const firstLes = response.data.course.chapters[0].sections[0].lessons[0];
+          // CHUẨN HÓA DỮ LIỆU ĐỂ LUÔN THEO CHUẨN 2 TẦNG (Không bị văng app với khóa học cũ)
+          const normalizedData = normalizeCourseData(response.data.course);
+          setCourseData(normalizedData);
+
+          if (normalizedData?.chapters?.length > 0) {
+            setExpandedChapters([normalizedData.chapters[0]._id]);
+            if (normalizedData.chapters[0].sections?.length > 0) {
+               setExpandedSections([normalizedData.chapters[0].sections[0]._id]);
+               const firstLes = normalizedData.chapters[0].sections[0].lessons[0];
                if(firstLes) setExpandedLessons([firstLes._id]);
             }
           }
@@ -422,12 +452,33 @@ export const CourseDetail = () => {
     setActiveLesson(lesson); 
     setFlippedCards({});
     setIsRedoing(false); 
-    const progress = enrollment?.progress?.find(p => p.lessonId === lesson._id);
-    if (progress && progress.answers) setAnswers(progress.answers); else setAnswers({});
     
-    if (!expandedLessons.includes(lesson._id)) {
-      setExpandedLessons(prev => [...prev, lesson._id]);
+    const progress = enrollment?.progress?.find(p => p.lessonId === lesson._id);
+    if (progress && progress.answers) {
+       // CHUẨN HÓA ANSWERS CŨ THÀNH MỚI
+       let normAnswers = {};
+       Object.keys(progress.answers).forEach(exId => {
+           let rawAns = progress.answers[exId];
+           if (typeof rawAns === 'object' && rawAns !== null && !Array.isArray(rawAns) && Object.keys(rawAns).some(k => k.includes('-'))) {
+               normAnswers[exId] = rawAns; 
+           } else {
+               normAnswers[exId] = {};
+               const ex = lesson.exercises?.find(e => e._id === exId);
+               if (ex && ex.type === 'reading') {
+                   if (typeof rawAns === 'object' && rawAns !== null) {
+                       Object.keys(rawAns).forEach(k => { normAnswers[exId][`0-${k}`] = rawAns[k]; });
+                   }
+               } else {
+                   normAnswers[exId]['0-0'] = rawAns;
+               }
+           }
+       });
+       setAnswers(normAnswers);
+    } else { 
+       setAnswers({}); 
     }
+    
+    if (!expandedLessons.includes(lesson._id)) setExpandedLessons(prev => [...prev, lesson._id]);
     window.scrollTo({top: 0, behavior: 'smooth'});
   };
 
@@ -446,10 +497,16 @@ export const CourseDetail = () => {
     setAnswers({}); 
   };
 
+  const handleAnswerChange = (exId, ansKey, value) => {
+    setAnswers(prev => ({
+      ...prev,
+      [exId]: { ...(prev[exId] || {}), [ansKey]: value }
+    }));
+  };
+
   const handleSubmitLesson = async () => {
     if (!activeLesson) return;
     if (id === 'mock-1') {
-       // SỬ DỤNG HÀM TÍNH ĐIỂM CHUẨN XÁC ĐỂ TRÁNH VIỆC ĐƯỢC FULL ĐIỂM KHI CHƯA CHỌN
        const earnedPoints = activeLesson.exercises?.reduce((acc, ex) => acc + calculateExerciseScore(ex, answers[ex._id]), 0); 
        setEnrollment(prev => ({ ...prev, progress: [...(prev?.progress || []), { lessonId: activeLesson._id, answers, score: earnedPoints }] }));
        setIsRedoing(false);
@@ -477,145 +534,170 @@ export const CourseDetail = () => {
 
   const renderStudentExercise = (ex, index) => {
     const isLocked = isLessonCompleted(activeLesson._id) && !isRedoing;
-    const blockPoints = ex.questions?.reduce((sum, q) => sum + (q.points || 0), 0) || ex.points || 0;
+    const blockPoints = ex.questions?.reduce((sum, qGroup) => sum + (qGroup.subQuestions?.reduce((s, sq) => s + (sq.points || 0), 0) || 0), 0) || 0;
 
     return (
       <div key={index} id={`ex-${index}`} className="bg-white border border-gray-200 rounded-2xl p-0 shadow-sm mb-6 overflow-hidden">
         <div className="flex flex-wrap justify-between items-center bg-gray-50 border-b border-gray-200 px-5 py-4">
           <div className="flex items-center gap-3">
-            <span className="bg-orange-500 text-white w-7 h-7 rounded-md flex items-center justify-center font-extrabold text-sm shadow-sm">
-              {index + 1}
-            </span>
-            <span className="font-extrabold text-gray-800 uppercase tracking-wide text-sm">
-              Block Bài Tập: {getTypeLabel(ex.type)}
-            </span>
+            <span className="bg-orange-500 text-white w-7 h-7 rounded-md flex items-center justify-center font-extrabold text-sm shadow-sm">{index + 1}</span>
+            <span className="font-extrabold text-gray-800 uppercase tracking-wide text-sm">Bài tập {index + 1}: {getTypeLabel(ex.type)}</span>
           </div>
           {blockPoints > 0 && <span className="bg-orange-100 text-orange-700 text-xs font-bold px-3 py-1.5 rounded-md border border-orange-200 shadow-sm">{blockPoints} điểm</span>}
         </div>
         
         <div className="p-6">
           {ex.instruction && <p className="text-sm font-medium text-gray-700 mb-5 bg-yellow-50/50 border-l-4 border-yellow-400 p-3 rounded">{ex.instruction}</p>}
+          {ex.passage && <div className="mb-5 bg-gray-50 p-4 rounded-xl border border-gray-200"><RenderMediaOrText content={ex.passage} /></div>}
+          {ex.contentUrl && ex.type === 'listening' && (
+             <div className="bg-gray-100 rounded-full p-2 mb-6 max-w-md border border-gray-200 shadow-inner">
+               <audio src={`${ex.contentUrl}${ex.endTime ? `#t=${ex.startTime || 0},${ex.endTime}` : ''}`} controls className="w-full outline-none" />
+             </div>
+          )}
 
-          {ex.type === 'reading' && (
-            <div className="space-y-6">
-              <div className="bg-gray-50 p-5 rounded-xl border border-gray-200 leading-relaxed text-gray-800 text-base shadow-inner">
-                 <RenderMediaOrText content={ex.passage} />
-              </div>
-              <div className="space-y-6">
-                 {ex.subQuestions?.map((sq, sqIdx) => (
-                   <div key={sqIdx} className="pl-4 border-l-2 border-blue-200">
-                      <h5 className="font-bold text-gray-800 mb-4 text-lg">{sqIdx + 1}. {sq.question}</h5>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        {sq.options.map((opt, oIdx) => {
-                          let stateClass = "border-gray-200 hover:bg-blue-50 bg-white";
-                          const studentAns = answers[ex._id]?.[sqIdx];
-                          if (isLocked) {
-                            if (opt === sq.correctAnswer) stateClass = "border-green-500 bg-green-50 ring-2 ring-green-200";
-                            else if (opt === studentAns) stateClass = "border-red-400 bg-red-50 ring-2 ring-red-200";
-                          } else if (studentAns === opt) stateClass = "border-blue-500 bg-blue-50 ring-2 ring-blue-200";
-
-                          return (
-                            <label key={oIdx} className={`flex items-center gap-3 p-4 border-2 rounded-xl cursor-pointer transition-all shadow-sm ${stateClass}`}>
-                              <input type="radio" disabled={isLocked} checked={studentAns === opt} onChange={() => setAnswers(prev => ({...prev, [ex._id]: {...(prev[ex._id] || {}), [sqIdx]: opt}}))} className="w-5 h-5 text-blue-600 flex-shrink-0" />
-                              <RenderMediaOrText content={opt} />
-                            </label>
-                          )
-                        })}
+          <div className="space-y-8">
+             {ex.questions?.map((qGroup, qIdx) => (
+                <div key={qIdx} className="border border-gray-100 rounded-xl p-5 shadow-sm">
+                   
+                   {/* Phần Đề bài / Đa phương tiện dùng chung cho Nhóm câu hỏi */}
+                   {(qGroup.question || qGroup.contentUrl || qGroup.audioUrl) && (
+                      <div className="mb-5 bg-blue-50/40 p-4 rounded-lg border border-blue-100">
+                         {qGroup.question && <p className="font-bold text-gray-800 mb-3 text-lg leading-relaxed">{qGroup.question}</p>}
+                         <div className="flex flex-col sm:flex-row gap-4">
+                            {qGroup.contentUrl && <div className="flex-1"><RenderMediaOrText content={qGroup.contentUrl} /></div>}
+                            {qGroup.audioUrl && <div className="flex-1"><RenderMediaOrText content={qGroup.audioUrl} /></div>}
+                         </div>
                       </div>
+                   )}
+
+                   {/* Phần Các câu hỏi con (Ý nhỏ) bên trong Nhóm */}
+                   <div className="space-y-6 pl-2 md:pl-4 border-l-2 border-orange-200">
+                      {qGroup.subQuestions?.map((sq, sqIdx) => {
+                         const ansKey = `${qIdx}-${sqIdx}`;
+                         const studentAns = answers[ex._id]?.[ansKey];
+
+                         return (
+                            <div key={sqIdx} className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm relative">
+                               <div className="absolute -left-[27px] md:-left-[35px] top-4 w-6 h-6 rounded-full bg-orange-100 text-orange-600 flex items-center justify-center font-bold text-xs border border-orange-200 shadow-sm">{sqIdx + 1}</div>
+                               
+                               {(ex.type === 'multiple_choice' || ex.type === 'reading') && (
+                                  <div>
+                                     {sq.question && <h5 className="font-bold text-gray-800 mb-4 text-base">{sq.question}</h5>}
+                                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                        {sq.options?.map((opt, oIdx) => {
+                                          let stateClass = "border-gray-200 hover:bg-blue-50 bg-white";
+                                          if (isLocked) {
+                                            if (opt === sq.correctAnswer) stateClass = "border-green-500 bg-green-50 ring-2 ring-green-200";
+                                            else if (opt === studentAns) stateClass = "border-red-400 bg-red-50 ring-2 ring-red-200";
+                                          } else if (studentAns === opt) stateClass = "border-blue-500 bg-blue-50 ring-2 ring-blue-200";
+
+                                          return (
+                                            <label key={oIdx} className={`flex items-center gap-3 p-4 border-2 rounded-xl cursor-pointer transition-all shadow-sm ${stateClass}`}>
+                                              <input type="radio" disabled={isLocked} checked={studentAns === opt} onChange={() => handleAnswerChange(ex._id, ansKey, opt)} className="w-5 h-5 text-blue-600 flex-shrink-0" />
+                                              <RenderMediaOrText content={opt} />
+                                            </label>
+                                          )
+                                        })}
+                                     </div>
+                                  </div>
+                               )}
+
+                               {ex.type === 'fill_blank' && (
+                                  <div>
+                                     <h5 className="font-bold text-gray-800 mb-4 leading-relaxed flex flex-wrap items-center">
+                                       {sq.question?.split('___').map((part, i, arr) => (
+                                         <React.Fragment key={i}>
+                                           <span className="mr-2">{part}</span>
+                                           {i !== arr.length - 1 && (
+                                             <input type="text" disabled={isLocked} value={studentAns || ''} onChange={(e) => handleAnswerChange(ex._id, ansKey, e.target.value)} className={`mx-1 w-32 border-b-2 text-center font-bold outline-none py-1 transition-colors ${isLocked ? (studentAns?.toLowerCase() === sq.correctAnswer?.toLowerCase() ? 'border-green-500 bg-green-50 text-green-700' : 'border-red-500 bg-red-50 text-red-700') : 'border-gray-300 bg-gray-50 focus:border-blue-500 text-blue-600'}`} placeholder="Nhập từ..." />
+                                           )}
+                                         </React.Fragment>
+                                       ))}
+                                     </h5>
+                                     {isLocked && studentAns?.toLowerCase() !== sq.correctAnswer?.toLowerCase() && <p className="text-green-600 text-sm font-bold mt-2">Đáp án đúng: {sq.correctAnswer}</p>}
+                                  </div>
+                               )}
+
+                               {ex.type === 'listening' && (
+                                  <div>
+                                     {sq.question && <h5 className="font-bold text-gray-800 mb-4">{sq.question}</h5>}
+                                     <input type="text" disabled={isLocked} value={studentAns || ''} onChange={(e) => handleAnswerChange(ex._id, ansKey, e.target.value)} className={`w-full p-4 border-2 rounded-xl outline-none font-bold text-gray-700 shadow-sm ${isLocked ? (studentAns?.toLowerCase() === sq.correctAnswer?.toLowerCase() ? 'border-green-500 bg-green-50' : 'border-red-400 bg-red-50') : 'border-gray-200 focus:border-blue-400 bg-white'}`} placeholder="Nhập câu trả lời..." />
+                                     {isLocked && studentAns?.toLowerCase() !== sq.correctAnswer?.toLowerCase() && <p className="text-green-600 text-sm font-bold mt-2">Đáp án đúng: {sq.correctAnswer}</p>}
+                                  </div>
+                               )}
+
+                               {ex.type === 'matching' && (
+                                  <div>
+                                     {sq.question && <h5 className="font-bold text-gray-800">{sq.question}</h5>}
+                                     <InteractiveMatching sq={sq} value={studentAns || {}} onChange={(val) => handleAnswerChange(ex._id, ansKey, val)} isSubmitted={isLocked} />
+                                  </div>
+                               )}
+
+                               {ex.type === 'speaking' && <InteractiveSpeaking sq={sq} value={studentAns || {}} onChange={(val) => handleAnswerChange(ex._id, ansKey, val)} isSubmitted={isLocked} />}
+
+                               {(ex.type === 'flashcard' || ex.type === 'vocab') && (
+                                  <div className="flex flex-col items-center justify-center py-6">
+                                     <div onClick={() => setFlippedCards(prev => ({...prev, [`${ex._id}-${ansKey}`]: !prev[`${ex._id}-${ansKey}`]}))} className="cursor-pointer group relative w-full max-w-sm aspect-[4/3] perspective-1000">
+                                       <div className={`w-full h-full transition-transform duration-700 transform-style-3d shadow-lg rounded-3xl ${flippedCards[`${ex._id}-${ansKey}`] ? 'rotate-y-180' : ''}`}>
+                                         <div className="absolute inset-0 backface-hidden bg-white border border-gray-200 rounded-3xl flex flex-col items-center justify-center p-6 hover:shadow-xl transition-shadow">
+                                            <RenderMediaOrText content={sq.question} />
+                                            <p className="absolute bottom-4 text-xs font-bold text-gray-400 uppercase tracking-widest bg-gray-100 px-3 py-1 rounded-full animate-pulse">Bấm lật thẻ</p>
+                                         </div>
+                                         <div className="absolute inset-0 backface-hidden bg-blue-50 border border-blue-200 rounded-3xl flex flex-col items-center justify-center p-6 rotate-y-180 shadow-inner">
+                                            <div className="text-2xl font-extrabold text-blue-700 text-center leading-tight mb-6"><RenderMediaOrText content={sq.correctAnswer} /></div>
+                                            {sq.audioUrl && (
+                                              <button onClick={(e) => { e.stopPropagation(); new Audio(sq.audioUrl).play(); }} className="w-14 h-14 bg-white text-blue-600 rounded-full flex items-center justify-center shadow-md hover:scale-110 hover:bg-blue-600 hover:text-white transition-all border border-blue-100">
+                                                <Volume2 size={24} />
+                                              </button>
+                                            )}
+                                         </div>
+                                       </div>
+                                     </div>
+                                  </div>
+                               )}
+
+                               {ex.type === 'essay' && (
+                                 <div>
+                                   <h4 className="text-lg font-bold text-gray-800 mb-4"><Edit3 size={20} className="inline mr-2 text-blue-500 -mt-1" />{sq.question}</h4>
+                                   <textarea disabled={isLocked} value={studentAns || ''} onChange={(e) => handleAnswerChange(ex._id, ansKey, e.target.value)} className={`w-full p-4 border-2 rounded-xl outline-none resize-y font-medium transition-colors min-h-[150px] shadow-sm ${isLocked ? 'bg-gray-100 border-gray-200 text-gray-500' : 'bg-white border-gray-200 focus:border-blue-400 text-gray-700'}`} placeholder="Bắt đầu viết tự luận..." />
+                                 </div>
+                               )}
+                            </div>
+                         );
+                      })}
                    </div>
-                 ))}
-              </div>
-            </div>
-          )}
+                </div>
+             ))}
+          </div>
 
-          {ex.type === 'multiple_choice' && (
-            <div>
-              <h4 className="text-lg font-bold text-gray-800 mb-5 leading-relaxed">{ex.question}</h4>
-              {ex.contentUrl && <div className="mb-5"><RenderMediaOrText content={ex.contentUrl} /></div>}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-2">
-                {ex.options.map((opt, i) => {
-                  let stateClass = "border-gray-200 hover:bg-blue-50 bg-white";
-                  if (isLocked) {
-                     if (opt === ex.correctAnswer) stateClass = "border-green-500 bg-green-50 ring-2 ring-green-200";
-                     else if (opt === answers[ex._id]) stateClass = "border-red-400 bg-red-50 ring-2 ring-red-200";
-                  } else if (answers[ex._id] === opt) stateClass = "border-blue-500 bg-blue-50 ring-2 ring-blue-200";
-
-                  return (
-                    <label key={i} className={`flex items-center gap-3 p-4 border-2 rounded-xl cursor-pointer transition-all shadow-sm ${stateClass}`}>
-                      <input type="radio" disabled={isLocked} name={`q-${ex._id}`} value={opt} checked={answers[ex._id] === opt} onChange={(e) => setAnswers(prev => ({...prev, [ex._id]: e.target.value}))} className="w-5 h-5 text-blue-600 accent-blue-600 flex-shrink-0" />
-                      <RenderMediaOrText content={opt} />
-                    </label>
-                  )
+          {/* <div className="mt-8 border-t border-gray-100 pt-6">
+             <div className="mb-6 flex flex-wrap items-center gap-2 justify-center p-4 bg-gray-50 rounded-lg border border-gray-200 shadow-inner">
+                <span className="text-sm font-bold text-gray-500 mr-2">Danh sách Bài tập:</span>
+                {activeLesson.exercises.map((ex, idx) => {
+                   const studentAnsObj = answers[ex._id];
+                   const isAns = studentAnsObj && Object.keys(studentAnsObj).length > 0;
+                   
+                   let btnClass = 'bg-white text-gray-500 border-gray-300 hover:bg-gray-100';
+                   
+                   if (isLessonCompleted(activeLesson._id) && !isRedoing) {
+                      const earned = calculateExerciseScore(ex, studentAnsObj);
+                      const maxPts = ex.questions?.reduce((sum, qGroup) => sum + (qGroup.subQuestions?.reduce((s, sq) => s + (sq.points || 0), 0) || 0), 0) || 0;
+                      
+                      if (earned >= maxPts && maxPts > 0) btnClass = 'bg-green-500 text-white border-green-500';
+                      else if (earned > 0) btnClass = 'bg-yellow-500 text-white border-yellow-500';
+                      else btnClass = 'bg-red-500 text-white border-red-500'; 
+                   } else if (isAns) {
+                      btnClass = 'bg-blue-500 text-white border-blue-500';
+                   }
+                   
+                   return (
+                    <button key={ex._id} onClick={() => scrollToExercise(idx)} type="button" className={`w-9 h-9 flex items-center justify-center rounded-md text-sm font-bold border transition-colors shadow-sm ${btnClass}`} title={`Đến bài ${idx + 1}`}>
+                      {idx + 1}
+                    </button>
+                   )
                 })}
-              </div>
-            </div>
-          )}
-
-          {ex.type === 'speaking' && <InteractiveSpeaking exercise={ex} value={answers[ex._id] || {}} onChange={(val) => setAnswers(prev => ({...prev, [ex._id]: val}))} isSubmitted={isLocked} />}
-
-          {ex.type === 'listening' && (
-            <div>
-              <h4 className="text-lg font-bold text-gray-800 mb-5 leading-relaxed">{ex.question}</h4>
-              {ex.contentUrl && (
-                <div className="bg-gray-100 rounded-full p-2 mb-6 max-w-md border border-gray-200 shadow-inner">
-                   <audio src={`${ex.contentUrl}${ex.endTime ? `#t=${ex.startTime || 0},${ex.endTime}` : ''}`} controls className="w-full outline-none" />
-                </div>
-              )}
-              <input type="text" disabled={isLocked} value={answers[ex._id] || ''} onChange={(e) => setAnswers(prev => ({...prev, [ex._id]: e.target.value}))} className={`w-full p-4 border-2 rounded-xl outline-none font-bold text-gray-700 shadow-sm ${isLocked ? (answers[ex._id]?.toLowerCase() === ex.correctAnswer?.toLowerCase() ? 'border-green-500 bg-green-50' : 'border-red-400 bg-red-50') : 'border-gray-200 focus:border-blue-400 bg-white'}`} placeholder="Nhập câu trả lời..." />
-              {isLocked && answers[ex._id]?.toLowerCase() !== ex.correctAnswer?.toLowerCase() && <p className="text-green-600 text-sm font-bold mt-2">Đáp án đúng: {ex.correctAnswer}</p>}
-            </div>
-          )}
-
-          {ex.type === 'fill_blank' && (
-            <div>
-              <h4 className="text-lg font-bold text-gray-800 mb-6 leading-relaxed flex flex-wrap items-center">
-                {ex.question.split('___').map((part, i, arr) => (
-                  <React.Fragment key={i}>
-                    <span className="mr-2">{part}</span>
-                    {i !== arr.length - 1 && (
-                      <input type="text" disabled={isLocked} value={answers[ex._id] || ''} onChange={(e) => setAnswers(prev => ({...prev, [ex._id]: e.target.value}))} className={`mx-1 w-32 border-b-2 text-center font-bold outline-none py-1 transition-colors ${isLocked ? (answers[ex._id]?.toLowerCase() === ex.correctAnswer?.toLowerCase() ? 'border-green-500 bg-green-50 text-green-700' : 'border-red-500 bg-red-50 text-red-700') : 'border-gray-300 bg-gray-50 focus:border-blue-500 text-blue-600'}`} placeholder="Nhập từ..." />
-                    )}
-                  </React.Fragment>
-                ))}
-              </h4>
-              {isLocked && answers[ex._id]?.toLowerCase() !== ex.correctAnswer?.toLowerCase() && <p className="text-green-600 text-sm font-bold mt-2">Đáp án đúng: {ex.correctAnswer}</p>}
-            </div>
-          )}
-
-          {ex.type === 'matching' && (
-             <div>
-                <h4 className="text-lg font-bold text-gray-800">{ex.question}</h4>
-                <InteractiveMatching exercise={ex} value={answers[ex._id] || {}} onChange={(val) => setAnswers(prev => ({...prev, [ex._id]: val}))} isSubmitted={isLocked} />
              </div>
-          )}
-
-          {(ex.type === 'flashcard' || ex.type === 'vocab') && (
-             <div className="flex flex-col items-center justify-center py-6">
-                <div onClick={() => setFlippedCards(prev => ({...prev, [ex._id]: !prev[ex._id]}))} className="cursor-pointer group relative w-full max-w-sm aspect-[4/3] perspective-1000">
-                  <div className={`w-full h-full transition-transform duration-700 transform-style-3d shadow-lg rounded-3xl ${flippedCards[ex._id] ? 'rotate-y-180' : ''}`}>
-                    <div className="absolute inset-0 backface-hidden bg-white border border-gray-200 rounded-3xl flex flex-col items-center justify-center p-6 hover:shadow-xl transition-shadow">
-                       <RenderMediaOrText content={ex.question} />
-                       <p className="absolute bottom-4 text-xs font-bold text-gray-400 uppercase tracking-widest bg-gray-100 px-3 py-1 rounded-full animate-pulse">Bấm lật thẻ</p>
-                    </div>
-                    <div className="absolute inset-0 backface-hidden bg-blue-50 border border-blue-200 rounded-3xl flex flex-col items-center justify-center p-6 rotate-y-180 shadow-inner">
-                       <div className="text-2xl font-extrabold text-blue-700 text-center leading-tight mb-6"><RenderMediaOrText content={ex.correctAnswer} /></div>
-                       {ex.audioUrl && (
-                         <button onClick={(e) => { e.stopPropagation(); new Audio(ex.audioUrl).play(); }} className="w-14 h-14 bg-white text-blue-600 rounded-full flex items-center justify-center shadow-md hover:scale-110 hover:bg-blue-600 hover:text-white transition-all border border-blue-100">
-                           <Volume2 size={24} />
-                         </button>
-                       )}
-                    </div>
-                  </div>
-                </div>
-             </div>
-          )}
-
-          {ex.type === 'essay' && (
-            <div>
-              <h4 className="text-lg font-bold text-gray-800 mb-4"><Edit3 size={20} className="inline mr-2 text-blue-500 -mt-1" />{ex.question}</h4>
-              <textarea disabled={isLocked} value={answers[ex._id] || ''} onChange={(e) => setAnswers(prev => ({...prev, [ex._id]: e.target.value}))} className={`w-full p-4 border-2 rounded-xl outline-none resize-y font-medium transition-colors min-h-[150px] shadow-sm ${isLocked ? 'bg-gray-100 border-gray-200 text-gray-500' : 'bg-white border-gray-200 focus:border-blue-400 text-gray-700'}`} placeholder="Bắt đầu viết tự luận..." />
-            </div>
-          )}
+          </div> */}
         </div>
       </div>
     );
@@ -706,24 +788,20 @@ export const CourseDetail = () => {
                                         )}
                                       </div>
                                       
-                                      {/* DANH SÁCH BÀI TẬP - ĐÃ CẬP NHẬT TÍNH ĐIỂM THỰC TẾ */}
                                       {isLessonExpanded && lesson.exercises && lesson.exercises.length > 0 && (
                                         <div className="flex flex-col gap-1 pl-4 border-l-[3px] border-orange-300 ml-4 py-3 bg-gray-50/50">
                                           {lesson.exercises.map((ex, eIdx) => {
-                                            
-                                            // Gọi CSDL xem học viên đạt bao nhiêu điểm
                                             let displayedScore = "Chưa HT";
                                             let scoreClass = "text-gray-500 bg-gray-200 border-gray-300";
                                             
                                             if (completed) {
                                                const prog = enrollment?.progress?.find(p => p.lessonId === lesson._id);
-                                               const ans = prog?.answers?.[ex._id];
-                                               const earned = calculateExerciseScore(ex, ans);
-                                               const maxPts = ex.points || 10;
-                                               displayedScore = `${earned} đ`;
+                                               const ansObj = prog?.answers?.[ex._id];
+                                               const earned = calculateExerciseScore(ex, ansObj);
+                                               const maxPts = ex.questions?.reduce((sum, qGroup) => sum + (qGroup.subQuestions?.reduce((s, sq) => s + (sq.points || 0), 0) || 0), 0) || 0;
                                                
-                                               // Màu xanh: max điểm | Màu Vàng: Có điểm nhưng chưa max | Màu đỏ: Sai 0 điểm
-                                               if (earned >= maxPts) scoreClass = "text-green-700 bg-green-100 border-green-200";
+                                               displayedScore = `${earned} đ`;
+                                               if (earned >= maxPts && maxPts > 0) scoreClass = "text-green-700 bg-green-100 border-green-200";
                                                else if (earned > 0) scoreClass = "text-yellow-700 bg-yellow-100 border-yellow-200";
                                                else scoreClass = "text-red-700 bg-red-100 border-red-200";
                                             }
@@ -737,9 +815,7 @@ export const CourseDetail = () => {
                                               <button key={ex._id || eIdx} onClick={handleClickEx} className="text-left flex items-center gap-2 text-[12px] text-gray-600 hover:text-blue-600 py-1.5 pr-3 rounded-md hover:bg-white transition-colors group">
                                                  <PenTool size={14} className="text-orange-400 flex-shrink-0 group-hover:text-blue-500 transition-colors"/>
                                                  <span className="flex-1 truncate font-medium" title={getTypeLabel(ex.type)}>Bài {eIdx + 1}: {getTypeLabel(ex.type)}</span>
-                                                 <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded whitespace-nowrap border ${scoreClass}`}>
-                                                    {displayedScore}
-                                                 </span>
+                                                 <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded whitespace-nowrap border ${scoreClass}`}>{displayedScore}</span>
                                               </button>
                                             );
                                           })}
@@ -795,34 +871,27 @@ export const CourseDetail = () => {
                     </div>
 
                     <div className="mt-8 border-t border-gray-100 pt-6">
-                       {/* ĐÃ CẬP NHẬT: CHECK MÀU THANH NAVIGATION */}
                        <div className="mb-6 flex flex-wrap items-center gap-2 justify-center p-4 bg-gray-50 rounded-lg border border-gray-200 shadow-inner">
-                          <span className="text-sm font-bold text-gray-500 mr-2">Danh sách Block bài tập:</span>
+                          <span className="text-sm font-bold text-gray-500 mr-2">Danh sách Bài tập:</span>
                           {activeLesson.exercises.map((ex, idx) => {
-                             const studentAns = answers[ex._id];
-                             const isAns = studentAns !== undefined && studentAns !== null && studentAns !== '';
+                             const studentAnsObj = answers[ex._id];
+                             const isAns = studentAnsObj && Object.keys(studentAnsObj).length > 0;
                              
                              let btnClass = 'bg-white text-gray-500 border-gray-300 hover:bg-gray-100';
                              
                              if (isLessonCompleted(activeLesson._id) && !isRedoing) {
-                                const earned = calculateExerciseScore(ex, studentAns);
-                                const maxPts = ex.points || 10;
+                                const earned = calculateExerciseScore(ex, studentAnsObj);
+                                const maxPts = ex.questions?.reduce((sum, qGroup) => sum + (qGroup.subQuestions?.reduce((s, sq) => s + (sq.points || 0), 0) || 0), 0) || 0;
                                 
-                                if (earned >= maxPts) btnClass = 'bg-green-500 text-white border-green-500';
+                                if (earned >= maxPts && maxPts > 0) btnClass = 'bg-green-500 text-white border-green-500';
                                 else if (earned > 0) btnClass = 'bg-yellow-500 text-white border-yellow-500';
-                                else btnClass = 'bg-red-500 text-white border-red-500'; // Sai 0 điểm hoặc bỏ trống
+                                else btnClass = 'bg-red-500 text-white border-red-500'; 
                              } else if (isAns) {
                                 btnClass = 'bg-blue-500 text-white border-blue-500';
                              }
                              
                              return (
-                              <button
-                                key={ex._id}
-                                onClick={() => scrollToExercise(idx)}
-                                type="button"
-                                className={`w-9 h-9 flex items-center justify-center rounded-md text-sm font-bold border transition-colors shadow-sm ${btnClass}`} 
-                                title={`Đến bài ${idx + 1}`}
-                              >
+                              <button key={ex._id} onClick={() => scrollToExercise(idx)} type="button" className={`w-9 h-9 flex items-center justify-center rounded-md text-sm font-bold border transition-colors shadow-sm ${btnClass}`} title={`Đến bài ${idx + 1}`}>
                                 {idx + 1}
                               </button>
                              )
@@ -860,7 +929,6 @@ export const CourseDetail = () => {
           </main>
         </div>
       </div>
-
       <style dangerouslySetColor="text/css">{`.perspective-1000 { perspective: 1000px; } .transform-style-3d { transform-style: preserve-3d; } .backface-hidden { backface-visibility: hidden; } .rotate-y-180 { transform: rotateY(180deg); }`}</style>
     </div>
   );
