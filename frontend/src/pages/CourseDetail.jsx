@@ -6,7 +6,6 @@ import { toast } from 'react-toastify';
 import { useAuthStore } from '../store/useAuthStore';
 import { ChevronDown, ChevronRight, PlayCircle, FileText, CheckCircle2, Mic, Edit3, Loader2, ChevronLeft, ChevronRight as IconNext, Volume2, RotateCcw, ArrowLeft, BookOpen, PenTool } from 'lucide-react';
 
-// MOCK DATA: Đã chuẩn hóa theo cấu trúc 2 tầng (Group -> SubQuestions)
 const MOCK_COURSE = {
   _id: "mock-1", title: "Khóa Học Demo (Cấu trúc 2 tầng)", description: "Bản demo hiển thị tất cả các loại câu hỏi theo cấu trúc nhóm câu hỏi mới.", price: 0, views: 9999,
   chapters: [{ _id: "chap-1", title: "Ngày 1", sections: [{ _id: "sec-1", title: "Unit 1 - Buổi 1", lessons: [{ _id: "les-1", title: "Bài hát ABC | Nhạc thiếu nhi vui nhộn", type: "youtube", contentUrl: "https://www.youtube.com/watch?v=5mGUXKcE61c",
@@ -40,7 +39,6 @@ const getTypeLabel = (type) => {
   }
 };
 
-// HÀM TÍNH ĐIỂM DỰA TRÊN CẤU TRÚC 2 TẦNG (Lặp qua từng Nhóm câu hỏi -> Ý nhỏ)
 const calculateExerciseScore = (ex, studentAnsObj) => {
   if (!studentAnsObj || typeof studentAnsObj !== 'object') return 0;
   let totalScore = 0;
@@ -78,7 +76,6 @@ const calculateExerciseScore = (ex, studentAnsObj) => {
   return totalScore;
 };
 
-// Hàm render đa phương tiện (Ảnh, Audio hoặc Text)
 const RenderMediaOrText = ({ content }) => {
   if (!content) return null;
   const isAudio = content.match(/\.(mp3|wav|ogg)$/i);
@@ -89,7 +86,6 @@ const RenderMediaOrText = ({ content }) => {
   return <span className="font-semibold text-gray-700 leading-relaxed text-sm md:text-base">{content}</span>;
 };
 
-// --- COMPONENT MATCHING ---
 const InteractiveMatching = ({ sq, value = {}, onChange, isSubmitted }) => {
   const [shuffledRight, setShuffledRight] = useState([]);
   const [selectedLeft, setSelectedLeft] = useState(null);
@@ -161,7 +157,6 @@ const InteractiveMatching = ({ sq, value = {}, onChange, isSubmitted }) => {
   )
 };
 
-// --- COMPONENT SPEAKING ---
 const InteractiveSpeaking = ({ sq, value, onChange, isSubmitted }) => {
   const [isRecording, setIsRecording] = useState(false);
   const [transcript, setTranscript] = useState(value?.transcript || "");
@@ -317,12 +312,11 @@ export const CourseDetail = () => {
   const [answers, setAnswers] = useState({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [flippedCards, setFlippedCards] = useState({}); 
-
   const [isRedoing, setIsRedoing] = useState(false); 
 
   useEffect(() => { window.scrollTo(0, 0); }, []);
 
-  // --- HÀM CHUẨN HÓA DATA: Giúp CourseDetail đọc mượt cả Khóa học Mới lẫn Khóa học Cũ ---
+  // CHUẨN HÓA DỮ LIỆU CŨ THÀNH MỚI HOÀN HẢO
   const normalizeCourseData = (data) => {
     if (!data) return data;
     const newData = JSON.parse(JSON.stringify(data));
@@ -330,21 +324,21 @@ export const CourseDetail = () => {
       ch.sections?.forEach(sec => {
         sec.lessons?.forEach(les => {
           les.exercises?.forEach(ex => {
-            // Nếu là bài cũ (không có array questions) -> Gói nó vào 1 group
             if (!ex.questions || ex.questions.length === 0) {
               const oldOpts = ex.options || [];
               const oldCorrect = ex.correctAnswer || '';
               const oldSubQ = ex.subQuestions || [];
+              const oldQ = ex.question || '';
               
               if (ex.type === 'reading') {
                 ex.questions = [{ 
-                  question: ex.passage || '', contentUrl: '', audioUrl: '', 
-                  subQuestions: oldSubQ.map(sq => ({...sq, points: sq.points || 10, contentUrl: '', audioUrl: ''})) 
+                  question: ex.passage || '', contentUrl: ex.contentUrl || '', audioUrl: ex.audioUrl || '', 
+                  subQuestions: oldSubQ.length > 0 ? oldSubQ : [{ question: oldQ, options: oldOpts, correctAnswer: oldCorrect, points: ex.points || 10 }] 
                 }];
               } else {
                 ex.questions = [{
-                  question: ex.question || '', contentUrl: ex.contentUrl || '', audioUrl: ex.audioUrl || '',
-                  subQuestions: [{ question: '', options: oldOpts, correctAnswer: oldCorrect, points: ex.points || 10, contentUrl: '', audioUrl: '' }]
+                  question: oldQ, contentUrl: ex.contentUrl || '', audioUrl: ex.audioUrl || '',
+                  subQuestions: oldSubQ.length > 0 ? oldSubQ : [{ question: '', options: oldOpts, correctAnswer: oldCorrect, points: ex.points || 10 }]
                 }];
               }
             }
@@ -360,7 +354,7 @@ export const CourseDetail = () => {
       try {
         setIsLoading(true);
         if (id === 'mock-1') {
-           setCourseData(MOCK_COURSE);
+           setCourseData(normalizeCourseData(MOCK_COURSE));
            const firstChapter = MOCK_COURSE.chapters[0];
            const firstSection = firstChapter?.sections[0];
            const firstLesson = firstSection?.lessons[0];
@@ -370,8 +364,6 @@ export const CourseDetail = () => {
         } else {
           const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
           const response = await axios.get(`${API_URL}/api/courses/${id}`);
-          
-          // CHUẨN HÓA DỮ LIỆU ĐỂ LUÔN THEO CHUẨN 2 TẦNG (Không bị văng app với khóa học cũ)
           const normalizedData = normalizeCourseData(response.data.course);
           setCourseData(normalizedData);
 
@@ -455,19 +447,16 @@ export const CourseDetail = () => {
     
     const progress = enrollment?.progress?.find(p => p.lessonId === lesson._id);
     if (progress && progress.answers) {
-       // CHUẨN HÓA ANSWERS CŨ THÀNH MỚI
        let normAnswers = {};
        Object.keys(progress.answers).forEach(exId => {
            let rawAns = progress.answers[exId];
            if (typeof rawAns === 'object' && rawAns !== null && !Array.isArray(rawAns) && Object.keys(rawAns).some(k => k.includes('-'))) {
                normAnswers[exId] = rawAns; 
            } else {
+               // Chuyển đổi format đáp án cũ map vào format 2 tầng (0-0, 0-1)
                normAnswers[exId] = {};
-               const ex = lesson.exercises?.find(e => e._id === exId);
-               if (ex && ex.type === 'reading') {
-                   if (typeof rawAns === 'object' && rawAns !== null) {
-                       Object.keys(rawAns).forEach(k => { normAnswers[exId][`0-${k}`] = rawAns[k]; });
-                   }
+               if (typeof rawAns === 'object' && rawAns !== null && !Array.isArray(rawAns)) {
+                   Object.keys(rawAns).forEach(k => { normAnswers[exId][`0-${k}`] = rawAns[k]; });
                } else {
                    normAnswers[exId]['0-0'] = rawAns;
                }
@@ -498,10 +487,7 @@ export const CourseDetail = () => {
   };
 
   const handleAnswerChange = (exId, ansKey, value) => {
-    setAnswers(prev => ({
-      ...prev,
-      [exId]: { ...(prev[exId] || {}), [ansKey]: value }
-    }));
+    setAnswers(prev => ({ ...prev, [exId]: { ...(prev[exId] || {}), [ansKey]: value } }));
   };
 
   const handleSubmitLesson = async () => {
@@ -559,7 +545,6 @@ export const CourseDetail = () => {
              {ex.questions?.map((qGroup, qIdx) => (
                 <div key={qIdx} className="border border-gray-100 rounded-xl p-5 shadow-sm">
                    
-                   {/* Phần Đề bài / Đa phương tiện dùng chung cho Nhóm câu hỏi */}
                    {(qGroup.question || qGroup.contentUrl || qGroup.audioUrl) && (
                       <div className="mb-5 bg-blue-50/40 p-4 rounded-lg border border-blue-100">
                          {qGroup.question && <p className="font-bold text-gray-800 mb-3 text-lg leading-relaxed">{qGroup.question}</p>}
@@ -570,7 +555,6 @@ export const CourseDetail = () => {
                       </div>
                    )}
 
-                   {/* Phần Các câu hỏi con (Ý nhỏ) bên trong Nhóm */}
                    <div className="space-y-6 pl-2 md:pl-4 border-l-2 border-orange-200">
                       {qGroup.subQuestions?.map((sq, sqIdx) => {
                          const ansKey = `${qIdx}-${sqIdx}`;
@@ -669,35 +653,6 @@ export const CourseDetail = () => {
                 </div>
              ))}
           </div>
-
-          {/* <div className="mt-8 border-t border-gray-100 pt-6">
-             <div className="mb-6 flex flex-wrap items-center gap-2 justify-center p-4 bg-gray-50 rounded-lg border border-gray-200 shadow-inner">
-                <span className="text-sm font-bold text-gray-500 mr-2">Danh sách Bài tập:</span>
-                {activeLesson.exercises.map((ex, idx) => {
-                   const studentAnsObj = answers[ex._id];
-                   const isAns = studentAnsObj && Object.keys(studentAnsObj).length > 0;
-                   
-                   let btnClass = 'bg-white text-gray-500 border-gray-300 hover:bg-gray-100';
-                   
-                   if (isLessonCompleted(activeLesson._id) && !isRedoing) {
-                      const earned = calculateExerciseScore(ex, studentAnsObj);
-                      const maxPts = ex.questions?.reduce((sum, qGroup) => sum + (qGroup.subQuestions?.reduce((s, sq) => s + (sq.points || 0), 0) || 0), 0) || 0;
-                      
-                      if (earned >= maxPts && maxPts > 0) btnClass = 'bg-green-500 text-white border-green-500';
-                      else if (earned > 0) btnClass = 'bg-yellow-500 text-white border-yellow-500';
-                      else btnClass = 'bg-red-500 text-white border-red-500'; 
-                   } else if (isAns) {
-                      btnClass = 'bg-blue-500 text-white border-blue-500';
-                   }
-                   
-                   return (
-                    <button key={ex._id} onClick={() => scrollToExercise(idx)} type="button" className={`w-9 h-9 flex items-center justify-center rounded-md text-sm font-bold border transition-colors shadow-sm ${btnClass}`} title={`Đến bài ${idx + 1}`}>
-                      {idx + 1}
-                    </button>
-                   )
-                })}
-             </div>
-          </div> */}
         </div>
       </div>
     );

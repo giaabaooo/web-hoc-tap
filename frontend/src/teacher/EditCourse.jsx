@@ -52,24 +52,35 @@ const QuickUploadZone = ({ value, onChange, onUpload, placeholder, type = "text"
   );
 };
 
-const AudioVisualTrimmer = ({ src, startTime, endTime, onUpdate }) => {
-  const audioRef = useRef(null);
+const MediaTrimmer = ({ src, startTime, endTime, onUpdate }) => {
+  const mediaRef = useRef(null);
   const [duration, setDuration] = useState(0);
-  const handleLoadedMetadata = () => { if (audioRef.current) setDuration(audioRef.current.duration); };
-  const handleTimeUpdate = () => { if (audioRef.current && endTime > 0 && audioRef.current.currentTime >= endTime) { audioRef.current.pause(); audioRef.current.currentTime = startTime; } };
+  const isVideo = src && src.match(/\.(mp4|webm|mov|mkv)$/i);
+
+  const handleLoadedMetadata = () => { if (mediaRef.current) setDuration(mediaRef.current.duration); };
+  const handleTimeUpdate = () => { 
+    if (mediaRef.current && endTime > 0 && mediaRef.current.currentTime >= endTime) { 
+      mediaRef.current.pause(); 
+      mediaRef.current.currentTime = startTime; 
+    } 
+  };
 
   return (
     <div className="bg-gray-800 p-3 rounded mt-2">
-      <audio ref={audioRef} src={src} onLoadedMetadata={handleLoadedMetadata} onTimeUpdate={handleTimeUpdate} controls className="w-full h-8 mb-3 outline-none" />
+      {isVideo ? (
+        <video ref={mediaRef} src={src} onLoadedMetadata={handleLoadedMetadata} onTimeUpdate={handleTimeUpdate} controls className="w-full h-40 mb-3 bg-black object-contain outline-none rounded" />
+      ) : (
+        <audio ref={mediaRef} src={src} onLoadedMetadata={handleLoadedMetadata} onTimeUpdate={handleTimeUpdate} controls className="w-full h-10 mb-3 outline-none" />
+      )}
       <div className="flex gap-4 items-center bg-gray-900 p-2 rounded text-white">
         <div className="flex-1">
           <label className="block text-[10px] font-bold text-gray-400 mb-1 uppercase">Từ giây:</label>
-          <input type="range" min="0" max={duration} step="0.5" value={startTime || 0} onChange={(e) => onUpdate('startTime', parseFloat(e.target.value))} className="w-full accent-blue-500" />
+          <input type="range" min="0" max={duration || 100} step="0.5" value={startTime || 0} onChange={(e) => onUpdate('startTime', parseFloat(e.target.value))} className="w-full accent-blue-500" />
           <div className="text-center text-blue-400 text-xs font-bold mt-1">{startTime || 0}s</div>
         </div>
         <div className="flex-1">
           <label className="block text-[10px] font-bold text-gray-400 mb-1 uppercase">Đến giây:</label>
-          <input type="range" min={startTime || 0} max={duration} step="0.5" value={endTime || duration} onChange={(e) => onUpdate('endTime', parseFloat(e.target.value))} className="w-full accent-red-500" />
+          <input type="range" min={startTime || 0} max={duration || 100} step="0.5" value={endTime || duration} onChange={(e) => onUpdate('endTime', parseFloat(e.target.value))} className="w-full accent-red-500" />
           <div className="text-center text-red-400 text-xs font-bold mt-1">{endTime || duration}s</div>
         </div>
       </div>
@@ -121,8 +132,8 @@ export const EditCourse = () => {
   
   const [courseInfo, setCourseInfo] = useState({ title: '', description: '', subject: 'Tiếng Anh', tag: 'Cơ bản', price: '', thumbnail: '' });
   
-  const defaultSubQuestion = { question: '', options: ['', '', '', ''], correctAnswer: '', points: 10, contentUrl: '', audioUrl: '' };
-  const defaultQuestionGroup = { question: '', contentUrl: '', audioUrl: '', subQuestions: [ { ...defaultSubQuestion } ] };
+  const defaultSubQuestion = { question: '', options: ['', '', '', ''], correctAnswer: '', points: 10, contentUrl: '', audioUrl: '', startTime: 0, endTime: 0 };
+  const defaultQuestionGroup = { question: '', contentUrl: '', audioUrl: '', startTime: 0, endTime: 0, subQuestions: [ { ...defaultSubQuestion } ] };
   
   const [chapters, setChapters] = useState([]);
   const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
@@ -142,7 +153,6 @@ export const EditCourse = () => {
         
         let chaps = [];
         if (data.chapters && data.chapters.length > 0) {
-           // MIGRATION SCRIPT: Tự động chuyển đổi dữ liệu cũ sang cấu trúc 2 tầng mới
            chaps = data.chapters.map(ch => ({
               ...ch,
               sections: ch.sections.map(sec => ({
@@ -150,23 +160,31 @@ export const EditCourse = () => {
                  lessons: sec.lessons.map(les => ({
                     ...les,
                     exercises: les.exercises.map(ex => {
-                       if (ex.questions && ex.questions.length > 0) return ex; // Đã là cấu trúc mới
+                       if (ex.questions && ex.questions.length > 0) {
+                         return {
+                           ...ex,
+                           startTime: ex.startTime || 0, endTime: ex.endTime || 0,
+                           questions: ex.questions.map(q => ({
+                             ...q, startTime: q.startTime || 0, endTime: q.endTime || 0,
+                             subQuestions: (q.subQuestions || []).map(sq => ({ ...sq, startTime: sq.startTime || 0, endTime: sq.endTime || 0 }))
+                           }))
+                         };
+                       }
                        
-                       // Nếu là cấu trúc cũ, bọc nó lại vào array questions
                        const oldOpts = ex.options || [];
                        const oldCorrect = ex.correctAnswer || '';
                        const oldSubQ = ex.subQuestions || [];
                        let newQuestions = [];
 
                        if (ex.type === 'reading') {
-                          newQuestions = [{ question: ex.passage || '', contentUrl: '', audioUrl: '', subQuestions: oldSubQ }];
+                          newQuestions = [{ question: ex.passage || '', contentUrl: '', audioUrl: '', startTime: 0, endTime: 0, subQuestions: oldSubQ.map(sq => ({...sq, startTime: 0, endTime: 0})) }];
                        } else {
                           newQuestions = [{
-                             question: ex.question || '', contentUrl: ex.contentUrl || '', audioUrl: '',
-                             subQuestions: [{ question: '', options: oldOpts, correctAnswer: oldCorrect, points: ex.points || 10, contentUrl: '', audioUrl: '' }]
+                             question: ex.question || '', contentUrl: ex.contentUrl || '', audioUrl: '', startTime: 0, endTime: 0,
+                             subQuestions: [{ question: '', options: oldOpts, correctAnswer: oldCorrect, points: ex.points || 10, contentUrl: '', audioUrl: '', startTime: 0, endTime: 0 }]
                           }];
                        }
-                       return { ...ex, questions: newQuestions };
+                       return { ...ex, startTime: ex.startTime || 0, endTime: ex.endTime || 0, questions: newQuestions };
                     })
                  }))
               }))
@@ -325,8 +343,8 @@ export const EditCourse = () => {
       else if (type === 'speaking') opts = []; 
       
       newChapters[cIndex].sections[sIndex].lessons[lIndex].exercises[eIndex].questions = [{
-         question: '', contentUrl: '', audioUrl: '',
-         subQuestions: [{ question: '', options: opts, correctAnswer: '', points: 10, contentUrl: '', audioUrl: '' }]
+         question: '', contentUrl: '', audioUrl: '', startTime: 0, endTime: 0,
+         subQuestions: [{ question: '', options: opts, correctAnswer: '', points: 10, contentUrl: '', audioUrl: '', startTime: 0, endTime: 0 }]
       }];
     } 
     setChapters(newChapters); 
@@ -342,8 +360,8 @@ export const EditCourse = () => {
     else if (ex.type === 'speaking') opts = [];
 
     ex.questions.push({
-      question: '', contentUrl: '', audioUrl: '',
-      subQuestions: [{ question: '', options: opts, correctAnswer: '', points: 10, contentUrl: '', audioUrl: '' }]
+      question: '', contentUrl: '', audioUrl: '', startTime: 0, endTime: 0,
+      subQuestions: [{ question: '', options: opts, correctAnswer: '', points: 10, contentUrl: '', audioUrl: '', startTime: 0, endTime: 0 }]
     });
     setChapters(newChapters);
   };
@@ -358,7 +376,7 @@ export const EditCourse = () => {
     else if (ex.type === 'matching') opts = ['|', '|', '|', '|'];
     else if (ex.type === 'speaking') opts = [];
 
-    ex.questions[qIndex].subQuestions.push({ question: '', options: opts, correctAnswer: '', points: 10, contentUrl: '', audioUrl: '' });
+    ex.questions[qIndex].subQuestions.push({ question: '', options: opts, correctAnswer: '', points: 10, contentUrl: '', audioUrl: '', startTime: 0, endTime: 0 });
     setChapters(newChapters);
   };
   const updateSubQuestion = (cIndex, sIndex, lIndex, eIndex, qIndex, sqIndex, field, val) => {
@@ -377,13 +395,36 @@ export const EditCourse = () => {
   const updateOption = (cIndex, sIndex, lIndex, eIndex, qIndex, sqIndex, optIndex, value) => { const newChapters = [...chapters]; newChapters[cIndex].sections[sIndex].lessons[lIndex].exercises[eIndex].questions[qIndex].subQuestions[sqIndex].options[optIndex] = value; setChapters(newChapters); };
   const updateMatchingOption = (cIndex, sIndex, lIndex, eIndex, qIndex, sqIndex, optIndex, side, value) => { const newChapters = [...chapters]; let currentVal = newChapters[cIndex].sections[sIndex].lessons[lIndex].exercises[eIndex].questions[qIndex].subQuestions[sqIndex].options[optIndex] || '|'; let parts = currentVal.split('|'); parts[side === 'left' ? 0 : 1] = value; newChapters[cIndex].sections[sIndex].lessons[lIndex].exercises[eIndex].questions[qIndex].subQuestions[sqIndex].options[optIndex] = parts.join('|'); setChapters(newChapters); };
   
+  const renderSubQuestionMedia = (sq, sqIndex, cIndex, sIndex, lIndex, eIndex, qIndex) => (
+    <div className="mt-4 bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
+       <label className="block text-xs font-bold text-gray-500 mb-3 uppercase flex items-center gap-2">
+         <ImageIcon size={14} className="text-orange-500"/> Đa phương tiện đính kèm cho Ý Nhỏ này
+       </label>
+       <div className="flex flex-col sm:flex-row gap-4">
+          <div className="flex-1">
+             <label className="text-[10px] font-bold text-gray-400 mb-1 block">Hình ảnh / Video</label>
+             <QuickUploadZone value={sq.contentUrl || ''} onChange={(url) => updateSubQuestion(cIndex, sIndex, lIndex, eIndex, qIndex, sqIndex, 'contentUrl', url)} onUpload={uploadFileToServer} placeholder="Dán Link hoặc tải ảnh/video lên..." />
+             {sq.contentUrl && sq.contentUrl.match(/\.(mp4|webm|mov|mp3|wav|ogg)$/i) && (
+               <MediaTrimmer src={sq.contentUrl} startTime={sq.startTime} endTime={sq.endTime} onUpdate={(field, val) => updateSubQuestion(cIndex, sIndex, lIndex, eIndex, qIndex, sqIndex, field, val)} />
+             )}
+          </div>
+          <div className="flex-1">
+             <label className="text-[10px] font-bold text-gray-400 mb-1 block">Âm thanh</label>
+             <QuickUploadZone value={sq.audioUrl || ''} onChange={(url) => updateSubQuestion(cIndex, sIndex, lIndex, eIndex, qIndex, sqIndex, 'audioUrl', url)} onUpload={uploadFileToServer} placeholder="Dán Link MP3 hoặc tải lên..." isAudio={true} />
+             {sq.audioUrl && sq.audioUrl.match(/\.(mp4|webm|mov|mp3|wav|ogg)$/i) && (
+               <MediaTrimmer src={sq.audioUrl} startTime={sq.startTime} endTime={sq.endTime} onUpdate={(field, val) => updateSubQuestion(cIndex, sIndex, lIndex, eIndex, qIndex, sqIndex, field, val)} />
+             )}
+          </div>
+       </div>
+    </div>
+  );
+
   const renderQuestionForm = (exType, qGroup, cIndex, sIndex, lIndex, eIndex, qIndex) => {
     const qKey = `question-${cIndex}-${sIndex}-${lIndex}-${eIndex}-${qIndex}`;
     const isQCollapsed = collapsed.questions[qKey];
 
     return (
       <div key={qIndex} id={qKey} className="bg-white rounded-xl border border-blue-200 shadow-sm relative overflow-hidden transition-all mt-4">
-        
         <div className="bg-blue-50/60 border-b border-blue-100 px-5 py-3.5 flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-3">
              <span className="bg-blue-600 text-white w-7 h-7 rounded-md flex items-center justify-center font-bold text-sm shadow-sm">Q{qIndex + 1}</span>
@@ -412,10 +453,16 @@ export const EditCourse = () => {
                     <div className="flex-1">
                        <label className="text-[10px] font-bold text-gray-400 mb-1 block">Hình ảnh / Video</label>
                        <QuickUploadZone value={qGroup.contentUrl || ''} onChange={(url) => updateQuestionGroup(cIndex, sIndex, lIndex, eIndex, qIndex, 'contentUrl', url)} onUpload={uploadFileToServer} placeholder="Dán Link hoặc tải ảnh/video lên..." />
+                       {qGroup.contentUrl && qGroup.contentUrl.match(/\.(mp4|webm|mov|mp3|wav|ogg)$/i) && (
+                         <MediaTrimmer src={qGroup.contentUrl} startTime={qGroup.startTime} endTime={qGroup.endTime} onUpdate={(field, val) => updateQuestionGroup(cIndex, sIndex, lIndex, eIndex, qIndex, field, val)} />
+                       )}
                     </div>
                     <div className="flex-1">
                        <label className="text-[10px] font-bold text-gray-400 mb-1 block">Âm thanh chung</label>
                        <QuickUploadZone value={qGroup.audioUrl || ''} onChange={(url) => updateQuestionGroup(cIndex, sIndex, lIndex, eIndex, qIndex, 'audioUrl', url)} onUpload={uploadFileToServer} placeholder="Dán Link MP3 hoặc tải lên..." isAudio={true} />
+                       {qGroup.audioUrl && qGroup.audioUrl.match(/\.(mp4|webm|mov|mp3|wav|ogg)$/i) && (
+                         <MediaTrimmer src={qGroup.audioUrl} startTime={qGroup.startTime} endTime={qGroup.endTime} onUpdate={(field, val) => updateQuestionGroup(cIndex, sIndex, lIndex, eIndex, qIndex, field, val)} />
+                       )}
                     </div>
                  </div>
                </div>
@@ -433,6 +480,7 @@ export const EditCourse = () => {
                          <span className="bg-orange-100 text-orange-600 w-5 h-5 flex items-center justify-center rounded text-xs">{sqIndex + 1}</span> 
                          Nội dung Ý nhỏ
                        </div>
+                       
                        <div className="flex items-center gap-3">
                          <div className="flex items-center gap-2 bg-gray-50 px-2 py-1 rounded-md border border-gray-200">
                            <span className="text-xs font-bold text-gray-500">Điểm:</span>
@@ -446,6 +494,7 @@ export const EditCourse = () => {
                       <div className="space-y-5">
                         <div>
                           <textarea value={sq.question} onChange={(e) => updateSubQuestion(cIndex, sIndex, lIndex, eIndex, qIndex, sqIndex, 'question', e.target.value)} placeholder={`Nhập nội dung cho ý nhỏ ${sqIndex + 1}...`} className="w-full text-sm font-semibold outline-none border border-gray-300 rounded-lg p-3 focus:border-blue-500 bg-gray-50" rows="2" />
+                          {renderSubQuestionMedia(sq, sqIndex, cIndex, sIndex, lIndex, eIndex, qIndex)}
                         </div>
                         
                         <div>
@@ -482,7 +531,10 @@ export const EditCourse = () => {
 
                     {exType === 'fill_blank' && (
                       <div className="space-y-4">
-                        <textarea value={sq.question} onChange={(e) => updateSubQuestion(cIndex, sIndex, lIndex, eIndex, qIndex, sqIndex, 'question', e.target.value)} placeholder="Nhập câu có chứa 3 dấu gạch ___ để điền từ..." className="w-full p-3 border border-gray-300 rounded-lg outline-none focus:border-blue-400 bg-gray-50 font-medium text-sm" rows="2" />
+                        <div>
+                          <textarea value={sq.question} onChange={(e) => updateSubQuestion(cIndex, sIndex, lIndex, eIndex, qIndex, sqIndex, 'question', e.target.value)} placeholder="Nhập câu có chứa 3 dấu gạch ___ để điền từ..." className="w-full p-3 border border-gray-300 rounded-lg outline-none focus:border-blue-400 bg-gray-50 font-medium text-sm" rows="2" />
+                          {renderSubQuestionMedia(sq, sqIndex, cIndex, sIndex, lIndex, eIndex, qIndex)}
+                        </div>
                         <div>
                           <label className="block text-[10px] font-bold text-gray-500 mb-1 uppercase">Đáp án đúng cho chỗ trống này</label>
                           <input type="text" value={sq.correctAnswer} onChange={(e) => updateSubQuestion(cIndex, sIndex, lIndex, eIndex, qIndex, sqIndex, 'correctAnswer', e.target.value)} placeholder="Ví dụ: school" className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm outline-none focus:border-green-400 font-bold text-green-700 bg-white" />
@@ -492,8 +544,10 @@ export const EditCourse = () => {
 
                     {exType === 'matching' && (
                       <div className="space-y-4">
-                        <input type="text" value={sq.question} onChange={(e) => updateSubQuestion(cIndex, sIndex, lIndex, eIndex, qIndex, sqIndex, 'question', e.target.value)} placeholder="Yêu cầu cụ thể của ý nối từ này (Tùy chọn)..." className="w-full text-sm font-bold outline-none border border-gray-300 rounded-lg p-2.5 bg-gray-50" />
-                        
+                        <div>
+                          <input type="text" value={sq.question} onChange={(e) => updateSubQuestion(cIndex, sIndex, lIndex, eIndex, qIndex, sqIndex, 'question', e.target.value)} placeholder="Yêu cầu cụ thể của ý nối từ này (Tùy chọn)..." className="w-full text-sm font-bold outline-none border border-gray-300 rounded-lg p-2.5 bg-gray-50" />
+                          {renderSubQuestionMedia(sq, sqIndex, cIndex, sIndex, lIndex, eIndex, qIndex)}
+                        </div>
                         <div className="space-y-3">
                           {sq.options.map((opt, oIdx) => {
                             const parts = opt.split('|');
@@ -513,7 +567,10 @@ export const EditCourse = () => {
 
                     {exType === 'speaking' && (
                       <div className="space-y-4">
-                        <input type="text" value={sq.question} onChange={(e) => updateSubQuestion(cIndex, sIndex, lIndex, eIndex, qIndex, sqIndex, 'question', e.target.value)} placeholder="Nhập câu cần đọc..." className="w-full text-sm font-bold outline-none border border-gray-300 rounded-lg p-3 bg-gray-50" />
+                        <div>
+                          <input type="text" value={sq.question} onChange={(e) => updateSubQuestion(cIndex, sIndex, lIndex, eIndex, qIndex, sqIndex, 'question', e.target.value)} placeholder="Nhập câu cần đọc..." className="w-full text-sm font-bold outline-none border border-gray-300 rounded-lg p-3 bg-gray-50" />
+                          {renderSubQuestionMedia(sq, sqIndex, cIndex, sIndex, lIndex, eIndex, qIndex)}
+                        </div>
                         <div>
                           <label className="block text-[10px] font-bold text-gray-500 mb-1 uppercase">Keyword / Đoạn text gốc để AI chấm điểm</label>
                           <input type="text" value={sq.correctAnswer} onChange={(e) => updateSubQuestion(cIndex, sIndex, lIndex, eIndex, qIndex, sqIndex, 'correctAnswer', e.target.value)} placeholder="Nhập text để so sánh AI..." className="w-full text-sm font-mono border border-gray-300 p-2.5 rounded-lg outline-none text-green-700 font-bold" />
@@ -542,7 +599,10 @@ export const EditCourse = () => {
 
                     {exType === 'essay' && (
                       <div className="space-y-4">
-                        <textarea value={sq.question} onChange={(e) => updateSubQuestion(cIndex, sIndex, lIndex, eIndex, qIndex, sqIndex, 'question', e.target.value)} placeholder="Nhập đề tự luận..." className="w-full p-3 border border-gray-300 rounded-lg text-sm bg-gray-50" rows="3" />
+                        <div>
+                          <textarea value={sq.question} onChange={(e) => updateSubQuestion(cIndex, sIndex, lIndex, eIndex, qIndex, sqIndex, 'question', e.target.value)} placeholder="Nhập đề tự luận..." className="w-full p-3 border border-gray-300 rounded-lg text-sm bg-gray-50" rows="3" />
+                          {renderSubQuestionMedia(sq, sqIndex, cIndex, sIndex, lIndex, eIndex, qIndex)}
+                        </div>
                         <textarea value={sq.correctAnswer} onChange={(e) => updateSubQuestion(cIndex, sIndex, lIndex, eIndex, qIndex, sqIndex, 'correctAnswer', e.target.value)} placeholder="Barem / Keyword (Cho giáo viên)..." className="w-full p-3 border border-green-200 bg-green-50/30 rounded-lg text-sm" rows="2" />
                       </div>
                     )}
@@ -614,14 +674,14 @@ export const EditCourse = () => {
 
               {exercise.type === 'listening' && (
                 <div>
-                  <label className="block text-xs font-bold text-gray-700 mb-3 uppercase">File Audio Chung & Cắt ghép</label>
+                  <label className="block text-xs font-bold text-gray-700 mb-3 uppercase">Đa phương tiện (Audio/Video) Chung & Cắt ghép</label>
                   <div className="flex items-center gap-3 mb-4">
-                    <input type="text" value={exercise.contentUrl || ''} onChange={(e) => updateExercise(cIndex, sIndex, lIndex, eIndex, 'contentUrl', e.target.value)} placeholder="Nhập Link MP3..." className="flex-1 p-3 text-sm border border-gray-300 rounded-lg bg-gray-50 outline-none focus:border-blue-400" />
+                    <input type="text" value={exercise.contentUrl || ''} onChange={(e) => updateExercise(cIndex, sIndex, lIndex, eIndex, 'contentUrl', e.target.value)} placeholder="Nhập Link Media..." className="flex-1 p-3 text-sm border border-gray-300 rounded-lg bg-gray-50 outline-none focus:border-blue-400" />
                     <label className="bg-blue-50 text-blue-600 border border-blue-200 px-5 py-3 rounded-lg text-sm font-bold cursor-pointer hover:bg-blue-100 transition-colors shadow-sm whitespace-nowrap"> 
-                      Tải Audio <input type="file" accept="audio/*" className="hidden" onChange={(e) => handleFileUpload(e, (url) => updateExercise(cIndex, sIndex, lIndex, eIndex, 'contentUrl', url))} /> 
+                      Tải File <input type="file" accept="audio/*,video/*" className="hidden" onChange={(e) => handleFileUpload(e, (url) => updateExercise(cIndex, sIndex, lIndex, eIndex, 'contentUrl', url))} /> 
                     </label>
                   </div>
-                  {exercise.contentUrl && <AudioVisualTrimmer src={exercise.contentUrl} startTime={exercise.startTime} endTime={exercise.endTime} onUpdate={(field, val) => updateExercise(cIndex, sIndex, lIndex, eIndex, field, val)} />}
+                  {exercise.contentUrl && <MediaTrimmer src={exercise.contentUrl} startTime={exercise.startTime} endTime={exercise.endTime} onUpdate={(field, val) => updateExercise(cIndex, sIndex, lIndex, eIndex, field, val)} />}
                 </div>
               )}
             </div>
@@ -641,7 +701,7 @@ export const EditCourse = () => {
     );
   };
 
-  if (isLoading) return <div className="flex items-center justify-center min-h-screen text-blue-500">Đang tải...</div>;
+  if (isLoading) return <div className="flex items-center justify-center min-h-screen text-blue-500"><Loader2 className="animate-spin mr-2" /> Đang tải...</div>;
 
   return (
     <div className="flex w-full font-sans min-h-screen bg-[#f8fafc]">
