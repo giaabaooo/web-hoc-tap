@@ -15,7 +15,7 @@ export const AuthPage = () => {
     if (isAuthenticated && user) {
       if (user.role === 'admin') navigate('/admin-dashboard', { replace: true });
       else if (user.role === 'teacher') navigate('/teacher-dashboard', { replace: true });
-      else navigate('/dashboard', { replace: true });
+      else navigate('/', { replace: true });
     }
   }, [isAuthenticated, user, navigate]);
 
@@ -80,7 +80,7 @@ export const AuthPage = () => {
       
       if (user.role === 'admin') navigate('/admin-dashboard', { replace: true });
       else if (user.role === 'teacher') navigate('/teacher-dashboard', { replace: true });
-      else navigate('/dashboard', { replace: true });
+      else navigate('/', { replace: true });
       
     } catch (error) {
       const errorMsg = error.response?.data?.message || 'Có lỗi xảy ra, vui lòng thử lại sau!';
@@ -111,7 +111,7 @@ export const AuthPage = () => {
       
       if (user.role === 'admin') navigate('/admin-dashboard', { replace: true });
       else if (user.role === 'teacher') navigate('/teacher-dashboard', { replace: true });
-      else navigate('/dashboard', { replace: true });
+      else navigate('/', { replace: true });
       
     } catch (error) {
       if (error.response?.status === 403) {

@@ -9,6 +9,7 @@ import uploadRoutes from './routes/upload.routes.js';
 import feedbackRoutes from './routes/feedback.routes.js'; // THÊM DÒNG NÀY
 import adminRoutes from './routes/admin.js';             // THÊM DÒNG NÀY
 import { seedAdmin } from './scripts/seedAdmin.js'; 
+import userRoutes from './routes/user.routes.js';
 
 dotenv.config();
 const app = express();
@@ -39,6 +40,7 @@ app.use('/api/courses', courseRoutes);
 app.use('/api/upload', uploadRoutes);  
 app.use('/api/feedback', feedbackRoutes); // THÊM DÒNG NÀY (Học sinh gửi)
 app.use('/api/admin', adminRoutes);       // THÊM DÒNG NÀY (Admin quản lý)
+app.use('/api/users', userRoutes);        // THÊM DÒNG NÀY (Cập nhật thông tin người dùng)
 
 const PORT = process.env.PORT || 5000;
 mongoose.connect(process.env.MONGO_URI)

@@ -17,7 +17,7 @@ export const TeacherLayout = () => {
     const menu = [
         { name: 'Quản lý khóa học', path: '/teacher-dashboard', icon: <BookOpen size={18} /> },
         { name: 'Học viên', path: '/teacher-dashboard/students', icon: <Users size={18} /> },
-        { name: 'Doanh thu', path: '/teacher-dashboard/stats', icon: <BarChart2 size={18} /> },
+        // { name: 'Doanh thu', path: '/teacher-dashboard/stats', icon: <BarChart2 size={18} /> },
         { name: 'Cài đặt', path: '/teacher-dashboard/settings', icon: <Settings size={18} /> },
     ];
 

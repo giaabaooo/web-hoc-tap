@@ -16,13 +16,18 @@ import { Lessons } from './pages/Lessons';
 import { CourseDetail } from './pages/CourseDetail';
 import { AuthPage } from './pages/AuthPage';
 import { ComingSoon } from './pages/ComingSoon';
-
+import { Faq } from './pages/Faq';
+import { News } from './pages/News';
+import { Pricing } from './pages/Pricing';
 // Nhập Dashboard
-import { Dashboard } from './pages/Dashboard'; 
-import { AdminDashboard } from './admin/AdminDashboard'; 
-import { TeacherDashboard } from './teacher/TeacherDashboard'; 
-import { CreateCourse } from './teacher/CreateCourse'; 
+import { Dashboard } from './pages/Dashboard';
+import { AdminDashboard } from './admin/AdminDashboard';
+import { TeacherDashboard } from './teacher/TeacherDashboard';
+import { CreateCourse } from './teacher/CreateCourse';
 import { EditCourse } from './teacher/EditCourse';
+import { StudentManagement } from "./teacher/StudentManagement";
+import { TeacherSettings } from "./teacher/TeacherSettings"; // MỚI
+import { TeacherStats } from "./teacher/TeacherStats";       // MỚI
 
 // --- COMPONENT TỰ ĐỘNG CUỘN LÊN ĐẦU TRANG ---
 const ScrollToTop = () => {
@@ -44,9 +49,9 @@ function App() {
     <BrowserRouter>
       {/* Đặt ScrollToTop ở đây để nó hoạt động trên toàn bộ website */}
       <ScrollToTop />
-      
+
       <ToastContainer position="top-right" autoClose={3000} theme="light" />
-      
+
       <Routes>
         {/* PUBLIC ROUTES - Dùng chung Navbar */}
         <Route element={<PublicLayout />}>
@@ -54,13 +59,15 @@ function App() {
           <Route path="/lessons" element={<Lessons />} />
           <Route path="/lessons/:id" element={<CourseDetail />} />
           <Route path="/auth" element={<AuthPage />} />
-          
+
           {/* Hứng các link chưa code từ Navbar */}
           <Route path="/exam-prep" element={<ComingSoon title="Luyện thi" />} />
           <Route path="/documents" element={<ComingSoon title="Tài liệu" />} />
           <Route path="/mock-test" element={<ComingSoon title="Thi thử" />} />
-          <Route path="/pricing" element={<ComingSoon title="Mua chương trình" />} />
+          <Route path="/pricing" element={<Pricing />} />
           <Route path="/games" element={<ComingSoon title="Trò chơi" />} />
+          <Route path="/faq" element={<Faq />} />
+          <Route path="/news" element={<News />} />
         </Route>
 
         {/* STUDENT ROUTES - Dùng StudentLayout (Sidebar trái) */}
@@ -74,9 +81,9 @@ function App() {
         {/* TEACHER ROUTES - Dùng TeacherLayout (Sidebar trái riêng) */}
         <Route path="/teacher-dashboard" element={<TeacherLayout />}>
           <Route index element={<TeacherDashboard />} />
-          <Route path="students" element={<ComingSoon title="Quản lý học viên" />} />
-          <Route path="stats" element={<ComingSoon title="Thống kê doanh thu" />} />
-          <Route path="settings" element={<ComingSoon title="Cài đặt hồ sơ giáo viên" />} />
+          <Route path="students" element={<StudentManagement />} />
+          <Route path="stats" element={<TeacherStats />} />           {/* Thay ComingSoon bằng Component thật */}
+          <Route path="settings" element={<TeacherSettings />} />
           <Route path="create-course" element={<CreateCourse />} />
           <Route path="edit-course/:id" element={<EditCourse />} />
         </Route>
@@ -84,6 +91,7 @@ function App() {
         {/* ADMIN ROUTES - Dùng AdminLayout */}
         <Route path="/admin-dashboard" element={<AdminLayout />}>
           <Route index element={<AdminDashboard />} />
+          <Route path="edit-course/:id" element={<EditCourse />} />
         </Route>
       </Routes>
     </BrowserRouter>

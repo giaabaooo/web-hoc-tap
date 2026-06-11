@@ -54,7 +54,6 @@ export const Navbar = () => {
             {/* Tầng 1: Trắng */}
             <div className="bg-surface-muted px-4 sm:px-6 lg:px-8 py-2 flex justify-between items-center">
                 <Link to="/" className="flex items-center gap-3 outline-none focus-visible:ring-2 focus-visible:ring-surface-raised rounded pr-2">
-                    {/* ĐÃ THÊM LOGO TẠI ĐÂY */}
                     <img
                         src="/logo.png"
                         alt="Tự Học Vui Logo"
@@ -67,9 +66,11 @@ export const Navbar = () => {
                 </Link>
 
                 <div className="flex items-center gap-4">
-                    <button className="p-2 border border-border-default rounded-full hover:bg-surface-strong outline-none focus-visible:ring-2 focus-visible:ring-surface-raised">
+                    <Link to="/pricing" className="p-2 border border-border-default rounded-full hover:bg-surface-strong outline-none focus-visible:ring-2 focus-visible:ring-surface-raised relative">
                         <ShoppingCart size={20} className="text-text-tertiary" />
-                    </button>
+                        {/* Có thể thêm badge số lượng ở đây sau này */}
+                        <span className="absolute -top-1 -right-1 bg-rose-500 text-white text-[10px] font-bold w-4 h-4 flex items-center justify-center rounded-full">0</span>
+                    </Link>
 
                     <div className="hidden md:flex gap-2 items-center">
                         {isAuthenticated ? (
@@ -83,9 +84,7 @@ export const Navbar = () => {
                                     />
                                     <span className="text-sm font-medium text-text-primary">{user?.displayName}</span>
                                 </div>
-                                <Link to={getDashboardRoute()} className="px-5 py-2 bg-surface-raised text-surface-muted rounded-full hover:bg-blue-600 text-sm font-medium transition-colors outline-none focus-visible:ring-2 focus-visible:ring-surface-raised shadow-1 whitespace-nowrap">
-                                    Vào Dashboard
-                                </Link>
+                                {/* Đã xóa nút "Vào Dashboard" ở đây */}
                                 <button onClick={handleLogout} className="p-2 text-text-tertiary hover:text-red-500 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-surface-raised rounded">
                                     <LogOut size={20} />
                                 </button>
@@ -125,7 +124,6 @@ export const Navbar = () => {
                                             className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium transition-colors outline-none focus-visible:ring-2 focus-visible:ring-white ${isActive ? 'bg-surface-muted text-surface-raised' : 'hover:bg-blue-600'}`}
                                         >
                                             {link.icon} {link.name}
-                                            {/* {link.dropdown && <ChevronDown size={14} className="ml-1" />} */}
                                         </Link>
 
                                         {link.dropdown && (

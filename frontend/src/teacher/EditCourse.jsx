@@ -3,12 +3,13 @@ import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 import { useParams, useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
-import { Plus, Image as ImageIcon, Video, Trash2, FileEdit, Mic, Headphones, ScanLine, Type, FileText, ChevronDown, ChevronUp, ImagePlus, List, X, AlignLeft, ArrowLeft, ArrowUp, ArrowDown } from 'lucide-react';
+import { Plus, Image as ImageIcon, Video, Trash2, FileEdit, Mic, Headphones, ScanLine, Type, FileText, ChevronDown, ChevronUp, ImagePlus, List, X, AlignLeft, ArrowLeft, ArrowUp, ArrowDown, Save, Send } from 'lucide-react';
 import { useAuthStore } from '../store/useAuthStore'; 
 
 const QuickUploadZone = ({ value, onChange, onUpload, placeholder, type = "text", isAudio = false }) => {
   const isImage = value && value.startsWith('http') && !isAudio;
   const isAudioFile = value && value.startsWith('http') && isAudio;
+  const { user } = useAuthStore();
 
   const handlePaste = async (e) => {
     const items = (e.clipboardData || e.originalEvent.clipboardData).items;
@@ -90,49 +91,96 @@ const LessonPreview = ({ lesson }) => {
 
 export const EditCourse = () => {
   const { id } = useParams();
-  const { token } = useAuthStore();
+  const { token, user } = useAuthStore();
   const navigate = useNavigate(); 
   const [isUploading, setIsUploading] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isTocOpen, setIsTocOpen] = useState(true); 
-  const [collapsed, setCollapsed] = useState({ chapters: {}, sections: {}, lessons: {} });
+  const [collapsed, setCollapsed] = useState({ chapters: {}, sections: {}, lessons: {}, exercises: {} });
   
-  useEffect(() => { window.scrollTo(0, 0); }, []);
-
   const [courseInfo, setCourseInfo] = useState({ title: '', description: '', subject: 'Tiếng Anh', tag: 'Cơ bản', price: '', thumbnail: '' });
   const [chapters, setChapters] = useState([]);
   const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+
+  const [lastSavedData, setLastSavedData] = useState('');
+  const [isSavingDraft, setIsSavingDraft] = useState(false);
 
   useEffect(() => {
     const fetchCourseData = async () => {
       try {
         const res = await axios.get(`${API_URL}/api/courses/${id}`);
         const data = res.data.course; 
-        setCourseInfo({ title: data.title || '', description: data.description || '', subject: data.subject || 'Tiếng Anh', tag: data.tag || 'Cơ bản', price: data.price || 0, thumbnail: data.thumbnail || '' });
-        if (data.chapters && data.chapters.length > 0) setChapters(data.chapters);
-        else setChapters([{ badgeText: 'Chương 1', title: '', sections: [{ title: '', lessons: [{ title: '', type: 'video_upload', contentUrl: '', exercises: [] }] }] }]);
-      } catch (error) { toast.error('Không tải được dữ liệu!'); navigate('/teacher-dashboard'); } 
-      finally { setIsLoading(false); }
+        const info = { title: data.title || '', description: data.description || '', subject: data.subject || 'Tiếng Anh', tag: data.tag || 'Cơ bản', price: data.price || 0, thumbnail: data.thumbnail || '' };
+        setCourseInfo(info);
+        
+        let chaps = [];
+        if (data.chapters && data.chapters.length > 0) chaps = data.chapters;
+        else chaps = [{ badgeText: 'Chương 1', title: '', sections: [{ title: '', lessons: [{ title: '', type: 'video_upload', contentUrl: '', exercises: [] }] }] }];
+        
+        setChapters(chaps);
+        setLastSavedData(JSON.stringify({ courseInfo: info, chapters: chaps }));
+      } catch (error) { 
+        toast.error('Không tải được dữ liệu!'); 
+        navigate('/teacher-dashboard'); 
+      } finally { 
+        setIsLoading(false); 
+      }
     };
     fetchCourseData();
   }, [id, API_URL, navigate]);
 
-  const handleInfoChange = (e) => setCourseInfo({ ...courseInfo, [e.target.name]: e.target.value });
-  const toggleCollapse = (type, id) => setCollapsed(prev => ({ ...prev, [type]: { ...prev[type], [id]: !prev[type][id] } }));
+  useEffect(() => {
+    if (isLoading) return;
+    const timer = setInterval(() => {
+      if (!courseInfo.title.trim()) return; 
+      const currentDataStr = JSON.stringify({ courseInfo, chapters });
+      
+      if (currentDataStr !== lastSavedData) {
+        handleUpdateCourse(false, true); 
+        setLastSavedData(currentDataStr);
+      }
+    }, 5000);
+    return () => clearInterval(timer);
+  }, [courseInfo, chapters, lastSavedData, isLoading]);
 
-  const scrollToElement = (type, cIndex, sIndex, lIndex) => {
+  // HÀM ĐIỀU HƯỚNG QUAY LẠI THÔNG MINH
+  const goBack = () => {
+    if (user?.role === 'admin') {
+      navigate('/admin-dashboard?tab=courses');
+    } else {
+      navigate('/teacher-dashboard');
+    }
+  };
+
+  const handleInfoChange = (e) => setCourseInfo({ ...courseInfo, [e.target.name]: e.target.value });
+  const toggleCollapse = (type, itemId) => setCollapsed(prev => ({ ...prev, [type]: { ...prev[type], [itemId]: !prev[type][itemId] } }));
+
+  const scrollToElement = (type, cIndex, sIndex, lIndex, eIndex = null) => {
     setCollapsed(prev => {
       const newCol = { ...prev };
       newCol.chapters[`chapter-${cIndex}`] = false;
-      if (type === 'section' || type === 'lesson') newCol.sections[`section-${cIndex}-${sIndex}`] = false;
-      if (type === 'lesson') newCol.lessons[`lesson-${cIndex}-${sIndex}-${lIndex}`] = false;
+      if (type === 'section' || type === 'lesson' || type === 'exercise') newCol.sections[`section-${cIndex}-${sIndex}`] = false;
+      if (type === 'lesson' || type === 'exercise') newCol.lessons[`lesson-${cIndex}-${sIndex}-${lIndex}`] = false;
       return newCol;
     });
     setTimeout(() => {
-      const elId = type === 'chapter' ? `chapter-${cIndex}` : type === 'section' ? `section-${cIndex}-${sIndex}` : `lesson-${cIndex}-${sIndex}-${lIndex}`;
+      let elId = '';
+      if (type === 'chapter') elId = `chapter-${cIndex}`;
+      else if (type === 'section') elId = `section-${cIndex}-${sIndex}`;
+      else if (type === 'lesson') elId = `lesson-${cIndex}-${sIndex}-${lIndex}`;
+      else if (type === 'exercise') elId = `exercise-${cIndex}-${sIndex}-${lIndex}-${eIndex}`;
+      
       const el = document.getElementById(elId);
-      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    }, 100);
+      const scrollContainer = document.getElementById('main-content-scroll');
+      
+      if (el && scrollContainer) {
+        const yOffset = -20; 
+        const containerRect = scrollContainer.getBoundingClientRect();
+        const elementRect = el.getBoundingClientRect();
+        const scrollTop = elementRect.top - containerRect.top + scrollContainer.scrollTop + yOffset;
+        scrollContainer.scrollTo({ top: scrollTop, behavior: 'smooth' });
+      }
+    }, 150);
   };
 
   const validateData = () => {
@@ -141,18 +189,28 @@ export const EditCourse = () => {
     return null;
   };
 
-  const handleUpdateCourse = async (isPublished = true) => {
+  const handleUpdateCourse = async (isPublished = true, isSilent = false) => {
     if (isPublished) {
       const errorMsg = validateData();
       if (errorMsg) return toast.warning(errorMsg);
     } else {
       if (!courseInfo.title.trim()) return toast.warning("Vui lòng nhập Tên khóa học để lưu nháp!");
     }
+    
+    if (!isSilent) setIsSavingDraft(true);
     try {
       await axios.put(`${API_URL}/api/courses/${id}`, { ...courseInfo, chapters, isPublished }, { headers: { Authorization: `Bearer ${token}` } });
-      toast.success(isPublished ? 'Cập nhật thành công!' : 'Lưu nháp thành công!');
-      navigate('/teacher-dashboard');
-    } catch (error) { toast.error('Lỗi khi lưu!'); }
+      setLastSavedData(JSON.stringify({ courseInfo, chapters }));
+      
+      if (!isSilent) {
+        toast.success(isPublished ? 'Cập nhật thành công!' : 'Lưu nháp thành công!');
+        goBack(); // Đẩy về đúng trang theo Role
+      }
+    } catch (error) { 
+      if (!isSilent) toast.error('Lỗi khi lưu!'); 
+    } finally {
+      if (!isSilent) setIsSavingDraft(false);
+    }
   };
 
   const uploadFileToServer = async (file, callback) => {
@@ -214,7 +272,7 @@ export const EditCourse = () => {
 
   const renderExerciseForm = (exercise, cIndex, sIndex, lIndex, eIndex) => {
     return (
-      <div key={eIndex} className="bg-white p-5 rounded-lg border border-gray-200 mt-4 shadow-sm relative">
+      <div key={eIndex} id={`exercise-${cIndex}-${sIndex}-${lIndex}-${eIndex}`} className="bg-white p-5 rounded-lg border border-gray-200 mt-4 shadow-sm relative scroll-mt-24">
         <div className="absolute top-3 right-3 flex gap-1">
            <button onClick={() => moveExercise(cIndex, sIndex, lIndex, eIndex, 'up')} className="p-1 hover:bg-gray-100 rounded text-gray-500"><ArrowUp size={16}/></button>
            <button onClick={() => moveExercise(cIndex, sIndex, lIndex, eIndex, 'down')} className="p-1 hover:bg-gray-100 rounded text-gray-500"><ArrowDown size={16}/></button>
@@ -344,7 +402,6 @@ export const EditCourse = () => {
             </div>
           )}
 
-          {/* SỬA LẠI UI BÀI TẬP NỐI TỪ Ở ĐÂY */}
           {exercise.type === 'matching' && (
             <div className="space-y-3">
               <input type="text" value={exercise.question} onChange={(e) => updateExercise(cIndex, sIndex, lIndex, eIndex, 'question', e.target.value)} placeholder="Nhập yêu cầu bài tập..." className="w-full text-base font-bold outline-none border-b border-gray-300 focus:border-blue-500 pb-1" />
@@ -426,209 +483,227 @@ export const EditCourse = () => {
   if (isLoading) return <div className="flex items-center justify-center min-h-screen text-blue-500">Đang tải...</div>;
 
   return (
-    <div className="flex relative font-sans">
+    <div className="flex w-full font-sans h-screen overflow-hidden bg-[#f8fafc]">
+      {/* SIDEBAR MỤC LỤC */}
       {isTocOpen && (
-        <aside className="w-64 flex-shrink-0 sticky top-16 h-[calc(100vh-64px)] overflow-y-auto bg-white border-r border-gray-200 shadow-sm p-4 hidden md:block custom-scrollbar z-10">
-          <div className="flex items-center justify-between mb-4 border-b pb-2">
+        <aside className="w-72 flex-shrink-0 bg-white border-r border-gray-200 shadow-sm flex flex-col z-40 h-full">
+          <div className="flex items-center justify-between p-4 border-b">
             <h3 className="font-bold text-gray-700 text-sm uppercase tracking-wide">Mục lục khóa học</h3>
             <button onClick={() => setIsTocOpen(false)} className="text-gray-400 hover:text-gray-800 p-1 rounded-md hover:bg-gray-100"><X size={16}/></button>
           </div>
-          {chapters.map((ch, cIndex) => (
-            <div key={cIndex} className="mb-4">
-              {/* CẬP NHẬT MỤC LỤC Ở ĐÂY ĐỂ HIỂN THỊ BADGE MỚI */}
-              <div className="font-bold text-sm text-blue-600 mb-1.5 cursor-pointer hover:underline truncate" onClick={() => scrollToElement('chapter', cIndex)}>
-                {ch.badgeText !== undefined ? ch.badgeText : `Chương ${cIndex+1}`} {ch.title ? `- ${ch.title}` : ''}
-              </div>
-              {ch.sections.map((sec, sIndex) => (
-                <div key={sIndex} className="pl-2 border-l-2 border-blue-100 ml-1.5 mt-1 space-y-1.5">
-                  <div className="text-xs font-bold text-orange-500 hover:underline cursor-pointer truncate" onClick={() => scrollToElement('section', cIndex, sIndex)}>
-                    {sec.title || `Buổi ${sIndex+1}`}
-                  </div>
-                  {sec.lessons.map((les, lIndex) => (
-                    <div key={lIndex} className="text-xs text-gray-500 hover:text-blue-600 cursor-pointer truncate pl-2" onClick={() => scrollToElement('lesson', cIndex, sIndex, lIndex)}>
-                       - {les.title || `Bài ${lIndex+1}`}
-                    </div>
-                  ))}
+          
+          <div className="flex-1 overflow-y-auto p-4 custom-scrollbar space-y-4">
+            {chapters.map((ch, cIndex) => (
+              <div key={cIndex} className="mb-2">
+                <div className="font-bold text-sm text-blue-600 mb-1.5 cursor-pointer hover:underline truncate" onClick={() => scrollToElement('chapter', cIndex)}>
+                  {ch.badgeText || `Chương ${cIndex+1}`} {ch.title ? `- ${ch.title}` : ''}
                 </div>
-              ))}
-            </div>
-          ))}
+                
+                {ch.sections.map((sec, sIndex) => (
+                  <div key={sIndex} className="pl-3 border-l-2 border-blue-100 ml-1.5 mt-1 space-y-1.5 pb-1">
+                    <div className="text-xs font-bold text-orange-500 hover:underline cursor-pointer truncate" onClick={() => scrollToElement('section', cIndex, sIndex)}>
+                      {sIndex + 1}. {sec.title || `Buổi ${sIndex+1}`}
+                    </div>
+                    
+                    {sec.lessons.map((les, lIndex) => (
+                      <div key={lIndex} className="space-y-1">
+                        <div className="text-xs font-medium text-gray-700 hover:text-blue-600 cursor-pointer truncate pl-2" onClick={() => scrollToElement('lesson', cIndex, sIndex, lIndex)}>
+                           - {les.title || `Bài lý thuyết ${lIndex+1}`}
+                        </div>
+                        
+                        {les.exercises && les.exercises.length > 0 && (
+                          <div className="pl-6 space-y-1.5 mt-1">
+                            {les.exercises.map((ex, eIndex) => {
+                               const typeLabel = ex.type === 'reading' ? 'Đọc hiểu' : ex.type === 'multiple_choice' ? 'Trắc nghiệm' : ex.type === 'matching' ? 'Nối từ' : ex.type === 'speaking' ? 'Luyện nói' : 'Bài tập';
+                               return (
+                                 <div key={eIndex} className="text-[11px] text-gray-500 hover:text-orange-500 cursor-pointer truncate" onClick={() => scrollToElement('exercise', cIndex, sIndex, lIndex, eIndex)}>
+                                   {String.fromCharCode(97 + eIndex)}. {typeLabel}
+                                 </div>
+                               )
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                ))}
+              </div>
+            ))}
+          </div>
         </aside>
       )}
 
-      {!isTocOpen && (
-        <button onClick={() => setIsTocOpen(true)} className="fixed left-0 top-24 bg-white border border-l-0 border-gray-200 shadow-md p-2 rounded-r-lg z-40 hover:bg-gray-50 hidden md:block text-gray-500 hover:text-blue-600">
-          <AlignLeft size={20} />
-        </button>
-      )}
-
-      <div className="flex-1 w-full max-w-5xl mx-auto px-4 md:px-8 py-6">
-        <div className="flex justify-between items-center mb-8">
-          <h2 className="text-3xl font-extrabold text-gray-800 tracking-tight">Sửa Khóa Học</h2>
-          <div className="flex gap-2">
-            <button onClick={() => handleUpdateCourse(false)} disabled={isUploading} className="px-5 py-2.5 rounded-lg text-sm font-bold border border-gray-300 text-gray-700 hover:bg-gray-100 transition-colors shadow-sm bg-white">Lưu nháp</button>
-            <button onClick={() => handleUpdateCourse(true)} disabled={isUploading} className="bg-blue-600 text-white px-6 py-2.5 rounded-lg text-sm font-bold hover:bg-blue-700 shadow-md hover:shadow-blue-500/30 transition-all flex items-center gap-2">
-              {isUploading && <span className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></span>} Cập nhật
-            </button>
-          </div>
-        </div>
+      {/* KHU VỰC SOẠN THẢO CHÍNH */}
+      <div className="flex-1 flex flex-col relative min-w-0 h-full">
         
-        {/* Form Thông tin */}
-        <div className="bg-white p-6 md:p-8 rounded-2xl shadow-sm border border-gray-200 mb-8">
-          <h3 className="text-lg font-bold text-gray-800 border-b border-gray-100 pb-3 mb-6 uppercase tracking-wide">Thông tin cơ bản</h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-            <div className="space-y-5">
-              <div><label className="block text-sm font-bold mb-1.5 text-gray-700">Tên khóa học *</label><input type="text" name="title" value={courseInfo.title} onChange={handleInfoChange} className="w-full p-3.5 border border-gray-300 rounded-xl bg-gray-50 outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-400 transition-all" /></div>
-              <div><label className="block text-sm font-bold mb-1.5 text-gray-700">Mô tả khóa học</label><textarea name="description" value={courseInfo.description} onChange={handleInfoChange} rows="4" className="w-full p-3 border border-gray-300 rounded-xl bg-gray-50 outline-none focus:ring-2 focus:ring-blue-100 transition-all"></textarea></div>
-              <div className="grid grid-cols-3 gap-4">
-                <div><label className="block text-sm font-bold mb-1.5 text-gray-700">Môn học</label><select name="subject" value={courseInfo.subject} onChange={handleInfoChange} className="w-full p-3 border border-gray-300 rounded-xl bg-gray-50 outline-none"><option>Tiếng Anh</option><option>Toán</option></select></div>
-                <div><label className="block text-sm font-bold mb-1.5 text-gray-700">Phân loại</label><select name="tag" value={courseInfo.tag} onChange={handleInfoChange} className="w-full p-3 border border-gray-300 rounded-xl bg-gray-50 outline-none"><option>Cơ bản</option><option>Nâng cao</option></select></div>
-                <div><label className="block text-sm font-bold mb-1.5 text-gray-700">Giá (VNĐ) *</label><input type="number" name="price" value={courseInfo.price} onChange={handleInfoChange} className="w-full p-3 border border-gray-300 rounded-xl bg-gray-50 outline-none focus:ring-2 focus:ring-orange-100" /></div>
-              </div>
-            </div>
-            <div className="flex flex-col">
-              <label className="block text-sm font-bold text-gray-700 mb-1.5">Ảnh bìa (Thumbnail) *</label>
-              <div className="flex-1 border-2 border-dashed border-gray-300 rounded-2xl bg-gray-50 flex items-center justify-center relative overflow-hidden group hover:bg-gray-100 transition-colors min-h-[250px]">
-                {courseInfo.thumbnail ? (
-                  <img src={courseInfo.thumbnail} className="w-full h-full object-cover absolute" alt="Cover" />
-                ) : <span className="text-gray-400 font-bold flex flex-col items-center gap-2"><ImageIcon size={40} className="opacity-50" /> Bấm hoặc kéo thả ảnh</span>}
-                <input type="file" accept="image/*" onChange={(e) => handleFileUpload(e, (url) => setCourseInfo(prev => ({ ...prev, thumbnail: url })))} className="absolute inset-0 opacity-0 cursor-pointer" />
-              </div>
-            </div>
+        {/* THANH TOPBAR CỐ ĐỊNH CHỨA NÚT LƯU & XUẤT BẢN */}
+        <div className="bg-white border-b border-gray-200 px-4 md:px-8 py-3 shadow-sm flex items-center justify-between z-30 flex-shrink-0">
+          <div className="flex items-center gap-3">
+            <button onClick={goBack} className="p-2 hover:bg-gray-100 rounded text-gray-500 transition-colors">
+              <ArrowLeft size={20} />
+            </button>
+            {!isTocOpen && (
+              <button onClick={() => setIsTocOpen(true)} className="p-2 hover:bg-gray-100 rounded text-gray-500 transition-colors">
+                <AlignLeft size={20} />
+              </button>
+            )}
+            <h2 className="text-xl font-extrabold text-gray-800 tracking-tight truncate max-w-xs md:max-w-md hidden sm:block">
+              {courseInfo.title ? `Sửa: ${courseInfo.title}` : "Chỉnh Sửa Khóa Học"}
+            </h2>
+          </div>
+
+          <div className="flex items-center gap-3">
+             <span className="text-[11px] text-gray-400 font-medium hidden md:inline-block mr-2">
+               {isSavingDraft ? "Đang lưu..." : "Hệ thống tự động lưu sau 5s"}
+             </span>
+             <button onClick={() => handleUpdateCourse(false)} disabled={isSavingDraft || isUploading} className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold border border-gray-300 text-gray-700 hover:bg-gray-50 transition-colors bg-white shadow-sm">
+               <Save size={16}/> <span className="hidden md:inline">Lưu Bản Nháp</span>
+             </button>
+             <button onClick={() => handleUpdateCourse(true)} disabled={isSavingDraft || isUploading} className="flex items-center gap-2 bg-blue-600 text-white px-5 py-2 rounded-lg text-sm font-bold hover:bg-blue-700 shadow-md transition-all">
+               <Send size={16}/> <span className="hidden md:inline">Cập nhật (Xuất Bản)</span>
+             </button>
           </div>
         </div>
 
-        <div className="space-y-8">
-          {chapters.map((chapter, cIndex) => {
-            const chapKey = `chapter-${cIndex}`;
-            const isChapCollapsed = collapsed.chapters[chapKey];
+        <div id="main-content-scroll" className="flex-1 overflow-y-auto relative w-full custom-scrollbar">
+          <div className="max-w-5xl mx-auto px-4 md:px-8 py-8 pb-32">
             
-            return (
-            <div key={cIndex} id={chapKey} className="bg-white p-6 rounded-2xl shadow-sm border border-blue-200 scroll-mt-24 relative">
-              <div className="absolute top-6 right-6 flex gap-1">
-                 <button onClick={() => moveChapter(cIndex, 'up')} className="p-1.5 bg-gray-50 hover:bg-gray-200 rounded text-gray-500"><ArrowUp size={16}/></button>
-                 <button onClick={() => moveChapter(cIndex, 'down')} className="p-1.5 bg-gray-50 hover:bg-gray-200 rounded text-gray-500"><ArrowDown size={16}/></button>
-                 <button onClick={() => toggleCollapse('chapters', chapKey)} className="p-1.5 bg-blue-50 text-blue-600 hover:bg-blue-100 rounded ml-2">{isChapCollapsed ? <ChevronDown size={16}/> : <ChevronUp size={16}/>}</button>
-                 <button onClick={() => removeChapter(cIndex)} className="p-1.5 bg-red-50 text-red-500 hover:bg-red-100 rounded"><Trash2 size={16}/></button>
-              </div>
+            <div className="bg-white p-6 md:p-8 rounded-2xl shadow-sm border border-gray-200 mb-8 mt-2">
+               <h3 className="text-lg font-bold text-gray-800 border-b border-gray-100 pb-3 mb-6 uppercase tracking-wide">Thông tin cơ bản</h3>
+               <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                  <div className="space-y-5">
+                    <div><label className="block text-sm font-bold mb-1.5 text-gray-700">Tên khóa học *</label><input type="text" name="title" value={courseInfo.title} onChange={handleInfoChange} className="w-full p-3.5 border border-gray-300 rounded-xl bg-gray-50 outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-400 transition-all" /></div>
+                    <div><label className="block text-sm font-bold mb-1.5 text-gray-700">Mô tả khóa học</label><textarea name="description" value={courseInfo.description} onChange={handleInfoChange} rows="4" className="w-full p-3 border border-gray-300 rounded-xl bg-gray-50 outline-none focus:ring-2 focus:ring-blue-100 transition-all"></textarea></div>
+                    <div className="grid grid-cols-3 gap-4">
+                      <div><label className="block text-sm font-bold mb-1.5 text-gray-700">Môn học</label><select name="subject" value={courseInfo.subject} onChange={handleInfoChange} className="w-full p-3 border border-gray-300 rounded-xl bg-gray-50 outline-none"><option>Tiếng Anh</option><option>Toán</option></select></div>
+                      <div><label className="block text-sm font-bold mb-1.5 text-gray-700">Phân loại</label><select name="tag" value={courseInfo.tag} onChange={handleInfoChange} className="w-full p-3 border border-gray-300 rounded-xl bg-gray-50 outline-none"><option>Cơ bản</option><option>Nâng cao</option></select></div>
+                      <div><label className="block text-sm font-bold mb-1.5 text-gray-700">Giá (VNĐ) *</label><input type="number" name="price" value={courseInfo.price} onChange={handleInfoChange} className="w-full p-3 border border-gray-300 rounded-xl bg-gray-50 outline-none focus:ring-2 focus:ring-orange-100" /></div>
+                    </div>
+                  </div>
+                  <div className="flex flex-col">
+                    <label className="block text-sm font-bold text-gray-700 mb-1.5">Ảnh bìa (Thumbnail) *</label>
+                    <div className="flex-1 border-2 border-dashed border-gray-300 rounded-2xl bg-gray-50 flex items-center justify-center relative overflow-hidden group hover:bg-gray-100 transition-colors min-h-[300px]">
+                      {courseInfo.thumbnail ? (
+                        <img src={courseInfo.thumbnail} className="w-full h-full object-cover absolute" alt="Cover" />
+                      ) : <span className="text-gray-400 font-bold flex flex-col items-center gap-2"><ImageIcon size={40} className="opacity-50" /> Bấm hoặc kéo thả ảnh</span>}
+                      <input type="file" accept="image/*" onChange={(e) => handleFileUpload(e, (url) => setCourseInfo(prev => ({ ...prev, thumbnail: url })))} className="absolute inset-0 opacity-0 cursor-pointer" />
+                    </div>
+                  </div>
+               </div>
+            </div>
 
-              {/* CẬP NHẬT INPUT TÊN CHƯƠNG/MODULE Ở ĐÂY */}
-              <div className="flex items-center gap-4 mb-6 pr-36 border-b-2 border-blue-100 pb-4">
-                <input 
-                  type="text" 
-                  value={chapter.badgeText !== undefined ? chapter.badgeText : `Chương ${cIndex + 1}`} 
-                  onChange={(e) => { 
-                    const newChapters = [...chapters]; 
-                    newChapters[cIndex].badgeText = e.target.value; 
-                    setChapters(newChapters); 
-                  }} 
-                  className="bg-gradient-to-r from-blue-600 to-blue-500 text-white px-4 py-1.5 rounded-lg font-bold text-sm shadow-sm w-32 text-center outline-none focus:ring-2 focus:ring-blue-300 placeholder-white/70"
-                  placeholder="VD: Chương 1"
-                />
-                <input 
-                  type="text" 
-                  value={chapter.title} 
-                  onChange={(e) => { 
-                    const newChapters = [...chapters]; 
-                    newChapters[cIndex].title = e.target.value; 
-                    setChapters(newChapters); 
-                  }} 
-                  className="text-2xl font-extrabold outline-none bg-transparent w-full text-gray-800 placeholder-gray-300" 
-                  placeholder="Nhập tiêu đề chương..." 
-                />
-              </div>
+            <div className="space-y-8">
+              {chapters.map((chapter, cIndex) => {
+                const chapKey = `chapter-${cIndex}`;
+                const isChapCollapsed = collapsed.chapters[chapKey];
+                
+                return (
+                <div key={cIndex} id={chapKey} className="bg-white p-6 md:p-8 rounded-2xl shadow-sm border border-blue-200 relative scroll-mt-24">
+                  <div className="absolute top-6 right-6 flex gap-1">
+                     <button onClick={() => moveChapter(cIndex, 'up')} className="p-1.5 bg-gray-50 hover:bg-gray-200 rounded text-gray-500"><ArrowUp size={16}/></button>
+                     <button onClick={() => moveChapter(cIndex, 'down')} className="p-1.5 bg-gray-50 hover:bg-gray-200 rounded text-gray-500"><ArrowDown size={16}/></button>
+                     <button onClick={() => toggleCollapse('chapters', chapKey)} className="p-1.5 bg-blue-50 text-blue-600 hover:bg-blue-100 rounded ml-2">{isChapCollapsed ? <ChevronDown size={16}/> : <ChevronUp size={16}/>}</button>
+                     <button onClick={() => removeChapter(cIndex)} className="p-1.5 bg-red-50 text-red-500 hover:bg-red-100 rounded"><Trash2 size={16}/></button>
+                  </div>
 
-              {!isChapCollapsed && (
-                <div className="space-y-6">
-                  {chapter.sections.map((section, sIndex) => {
-                    const secKey = `section-${cIndex}-${sIndex}`;
-                    const isSecCollapsed = collapsed.sections[secKey];
-                    
-                    return (
-                    <div key={sIndex} id={secKey} className="bg-gray-50 p-5 rounded-xl border border-gray-200 scroll-mt-24 relative">
-                      <div className="absolute top-5 right-5 flex gap-1">
-                         <button onClick={() => moveSection(cIndex, sIndex, 'up')} className="p-1 hover:bg-gray-200 rounded text-gray-400"><ArrowUp size={14}/></button>
-                         <button onClick={() => moveSection(cIndex, sIndex, 'down')} className="p-1 hover:bg-gray-200 rounded text-gray-400"><ArrowDown size={14}/></button>
-                         <button onClick={() => toggleCollapse('sections', secKey)} className="p-1 hover:bg-gray-200 rounded text-gray-500 ml-2">{isSecCollapsed ? <ChevronDown size={14}/> : <ChevronUp size={14}/>}</button>
-                         <button onClick={() => removeSection(cIndex, sIndex)} className="p-1 hover:bg-red-100 rounded text-red-400"><Trash2 size={14}/></button>
-                      </div>
+                  <div className="flex items-center gap-4 mb-6 pr-36 border-b-2 border-blue-100 pb-4">
+                    <input type="text" value={chapter.badgeText !== undefined ? chapter.badgeText : `Chương ${cIndex + 1}`} onChange={(e) => { const newChapters = [...chapters]; newChapters[cIndex].badgeText = e.target.value; setChapters(newChapters); }} className="bg-gradient-to-r from-blue-600 to-blue-500 text-white px-4 py-1.5 rounded-lg font-bold text-sm shadow-sm w-32 text-center outline-none focus:ring-2 focus:ring-blue-300 placeholder-white/70" placeholder="VD: Chương 1" />
+                    <input type="text" value={chapter.title} onChange={(e) => { const newChapters = [...chapters]; newChapters[cIndex].title = e.target.value; setChapters(newChapters); }} className="text-2xl font-extrabold outline-none bg-transparent w-full text-gray-800 placeholder-gray-300" placeholder="Nhập tiêu đề chương..." />
+                  </div>
 
-                      <div className="flex items-center gap-2 mb-4 pr-32">
-                        <div className="w-2.5 h-2.5 rounded-full bg-orange-500 shadow-sm"></div>
-                        <input type="text" value={section.title} onChange={(e) => { const newChapters = [...chapters]; newChapters[cIndex].sections[sIndex].title = e.target.value; setChapters(newChapters); }} className="font-bold text-lg text-orange-600 outline-none bg-transparent flex-1 placeholder-orange-300" placeholder="Tên Unit / Buổi học..." />
-                      </div>
+                  {!isChapCollapsed && (
+                    <div className="space-y-6">
+                      {chapter.sections.map((section, sIndex) => {
+                        const secKey = `section-${cIndex}-${sIndex}`;
+                        const isSecCollapsed = collapsed.sections[secKey];
+                        
+                        return (
+                        <div key={sIndex} id={secKey} className="bg-gray-50 p-5 rounded-2xl border border-gray-200 scroll-mt-24 relative">
+                          <div className="absolute top-5 right-5 flex gap-1">
+                             <button onClick={() => moveSection(cIndex, sIndex, 'up')} className="p-1 hover:bg-gray-200 rounded text-gray-400"><ArrowUp size={14}/></button>
+                             <button onClick={() => moveSection(cIndex, sIndex, 'down')} className="p-1 hover:bg-gray-200 rounded text-gray-400"><ArrowDown size={14}/></button>
+                             <button onClick={() => toggleCollapse('sections', secKey)} className="p-1 hover:bg-gray-200 rounded text-gray-500 ml-2">{isSecCollapsed ? <ChevronDown size={14}/> : <ChevronUp size={14}/>}</button>
+                             <button onClick={() => removeSection(cIndex, sIndex)} className="p-1 hover:bg-red-100 rounded text-red-400"><Trash2 size={14}/></button>
+                          </div>
 
-                      {!isSecCollapsed && (
-                        <div className="space-y-4 pl-3 border-l-2 border-orange-200 ml-1">
-                          {section.lessons.map((lesson, lIndex) => {
-                            const lessonKey = `lesson-${cIndex}-${sIndex}-${lIndex}`;
-                            const isCollapsed = collapsed.lessons[lessonKey];
+                          <div className="flex items-center gap-2 mb-4 pr-32">
+                            <div className="w-2.5 h-2.5 rounded-full bg-orange-500 shadow-sm"></div>
+                            <input type="text" value={section.title} onChange={(e) => { const newChapters = [...chapters]; newChapters[cIndex].sections[sIndex].title = e.target.value; setChapters(newChapters); }} className="font-bold text-lg text-orange-600 outline-none bg-transparent flex-1 placeholder-orange-300" placeholder="Tên Unit / Buổi học..." />
+                          </div>
 
-                            return (
-                            <div key={lIndex} id={lessonKey} className="bg-white p-5 rounded-lg border border-gray-200 shadow-sm scroll-mt-24 relative">
-                              <div className="absolute top-4 right-4 flex gap-1 z-10">
-                                <button onClick={() => moveLesson(cIndex, sIndex, lIndex, 'up')} className="p-1 hover:bg-gray-100 rounded text-gray-400"><ArrowUp size={14}/></button>
-                                <button onClick={() => moveLesson(cIndex, sIndex, lIndex, 'down')} className="p-1 hover:bg-gray-100 rounded text-gray-400"><ArrowDown size={14}/></button>
-                                <button onClick={() => toggleCollapse('lessons', lessonKey)} className="p-1 hover:bg-gray-100 rounded text-gray-500 ml-2">{isCollapsed ? <ChevronDown size={14} /> : <ChevronUp size={14} />}</button>
-                                <button onClick={() => removeLesson(cIndex, sIndex, lIndex)} className="p-1 hover:bg-red-50 rounded text-red-400"><Trash2 size={14} /></button>
-                              </div>
+                          {!isSecCollapsed && (
+                            <div className="space-y-4 pl-3 border-l-2 border-orange-200 ml-1">
+                              {section.lessons.map((lesson, lIndex) => {
+                                const lessonKey = `lesson-${cIndex}-${sIndex}-${lIndex}`;
+                                const isCollapsed = collapsed.lessons[lessonKey];
 
-                              <div className="flex items-center mb-4 pr-32">
-                                <span className="font-bold text-gray-800 text-base">{lesson.title || `Bài học ${lIndex + 1}`}</span>
-                              </div>
-
-                              {!isCollapsed && (
-                                <>
-                                  <div className="flex flex-col lg:flex-row gap-5 mb-2">
-                                    <div className="flex-1 space-y-3">
-                                      <div>
-                                        <label className="block text-[10px] font-bold text-gray-400 mb-1 uppercase">Tên Bài Lý Thuyết</label>
-                                        <input type="text" value={lesson.title} placeholder="VD: Vocabulary..." onChange={(e) => updateLesson(cIndex, sIndex, lIndex, 'title', e.target.value)} className="w-full p-2.5 border rounded-lg text-sm font-bold bg-gray-50 outline-none focus:bg-white focus:border-blue-400" />
-                                      </div>
-                                      <div>
-                                        <label className="block text-[10px] font-bold text-gray-400 mb-1 uppercase">Nội dung đính kèm</label>
-                                        <div className="flex flex-col sm:flex-row gap-2">
-                                          <select value={lesson.type} onChange={(e) => updateLesson(cIndex, sIndex, lIndex, 'type', e.target.value)} className="p-2.5 border rounded-lg text-sm bg-white outline-none focus:border-blue-400 font-bold text-gray-600">
-                                            <option value="video_upload">Video MP4</option><option value="image">Hình ảnh</option><option value="youtube">Link YouTube</option><option value="document">Tài liệu (PDF/Link)</option>
-                                          </select>
-                                          <div className="flex-1">
-                                            {lesson.type === 'youtube' || lesson.type === 'document' ? (
-                                              <input type="text" value={lesson.contentUrl} onChange={(e) => updateLesson(cIndex, sIndex, lIndex, 'contentUrl', e.target.value)} placeholder="Nhập Link/URL..." className="w-full p-2.5 border rounded-lg text-sm outline-none" />
-                                            ) : (
-                                              <label className="cursor-pointer bg-gray-50 border border-gray-300 hover:bg-blue-50 hover:border-blue-300 text-blue-600 px-4 py-2.5 rounded-lg text-sm font-bold flex items-center justify-center gap-2 w-full transition-colors">
-                                                {lesson.contentUrl ? '✅ Đã tải file (Click đổi)' : 'Tải File Từ Máy Tính'}
-                                                <input type="file" accept={lesson.type === 'image' ? "image/*" : "video/*"} className="hidden" onChange={(e) => handleFileUpload(e, (url) => updateLesson(cIndex, sIndex, lIndex, 'contentUrl', url))} />
-                                              </label>
-                                            )}
-                                          </div>
-                                        </div>
-                                      </div>
-                                    </div>
-                                    <div className="w-full lg:w-[40%] aspect-video bg-gray-100 rounded-lg border border-dashed border-gray-300 flex items-center justify-center overflow-hidden"><LessonPreview lesson={lesson} /></div>
+                                return (
+                                <div key={lIndex} id={lessonKey} className="bg-white p-5 rounded-xl border border-gray-200 shadow-sm scroll-mt-24 relative">
+                                  <div className="absolute top-4 right-4 flex gap-1 z-10">
+                                    <button onClick={() => moveLesson(cIndex, sIndex, lIndex, 'up')} className="p-1 hover:bg-gray-100 rounded text-gray-400"><ArrowUp size={14}/></button>
+                                    <button onClick={() => moveLesson(cIndex, sIndex, lIndex, 'down')} className="p-1 hover:bg-gray-100 rounded text-gray-400"><ArrowDown size={14}/></button>
+                                    <button onClick={() => toggleCollapse('lessons', lessonKey)} className="p-1 hover:bg-gray-100 rounded text-gray-500 ml-2">{isCollapsed ? <ChevronDown size={14} /> : <ChevronUp size={14} />}</button>
+                                    <button onClick={() => removeLesson(cIndex, sIndex, lIndex)} className="p-1 hover:bg-red-50 rounded text-red-400"><Trash2 size={14} /></button>
                                   </div>
 
-                                  {lesson.exercises && lesson.exercises.length > 0 && (
-                                    <div className="mt-6 border-t border-gray-100 pt-5">
-                                      <h4 className="text-xs font-bold text-gray-500 flex items-center gap-1.5 mb-2 uppercase tracking-wide"><List size={14}/> Bài tập đi kèm</h4>
-                                      {lesson.exercises.map((exercise, eIndex) => renderExerciseForm(exercise, cIndex, sIndex, lIndex, eIndex))}
-                                    </div>
+                                  <div className="flex items-center mb-4 pr-32">
+                                    <span className="font-bold text-gray-800 text-base">{lesson.title || `Bài học ${lIndex + 1}`}</span>
+                                  </div>
+
+                                  {!isCollapsed && (
+                                    <>
+                                      <div className="flex flex-col lg:flex-row gap-5 mb-2">
+                                        <div className="flex-1 space-y-3">
+                                          <div>
+                                            <label className="block text-[10px] font-bold text-gray-400 mb-1 uppercase">Tên Bài Lý Thuyết</label>
+                                            <input type="text" value={lesson.title} placeholder="VD: Vocabulary..." onChange={(e) => updateLesson(cIndex, sIndex, lIndex, 'title', e.target.value)} className="w-full p-2.5 border rounded-lg text-sm font-bold bg-gray-50 outline-none focus:bg-white focus:border-blue-400" />
+                                          </div>
+                                          <div>
+                                            <label className="block text-[10px] font-bold text-gray-400 mb-1 uppercase">Nội dung đính kèm</label>
+                                            <div className="flex flex-col sm:flex-row gap-2">
+                                              <select value={lesson.type} onChange={(e) => updateLesson(cIndex, sIndex, lIndex, 'type', e.target.value)} className="p-2.5 border rounded-lg text-sm bg-white outline-none focus:border-blue-400 font-bold text-gray-600">
+                                                <option value="video_upload">Video MP4</option><option value="image">Hình ảnh</option><option value="youtube">Link YouTube</option><option value="document">Tài liệu (PDF/Link)</option>
+                                              </select>
+                                              <div className="flex-1">
+                                                {lesson.type === 'youtube' || lesson.type === 'document' ? (
+                                                  <input type="text" value={lesson.contentUrl} onChange={(e) => updateLesson(cIndex, sIndex, lIndex, 'contentUrl', e.target.value)} placeholder="Nhập Link/URL..." className="w-full p-2.5 border rounded-lg text-sm outline-none" />
+                                                ) : (
+                                                  <label className="cursor-pointer bg-gray-50 border border-gray-300 hover:bg-blue-50 hover:border-blue-300 text-blue-600 px-4 py-2.5 rounded-lg text-sm font-bold flex items-center justify-center gap-2 w-full transition-colors">
+                                                    {lesson.contentUrl ? '✅ Đã tải file (Click đổi)' : 'Tải File Từ Máy Tính'}
+                                                    <input type="file" accept={lesson.type === 'image' ? "image/*" : "video/*"} className="hidden" onChange={(e) => handleFileUpload(e, (url) => updateLesson(cIndex, sIndex, lIndex, 'contentUrl', url))} />
+                                                  </label>
+                                                )}
+                                              </div>
+                                            </div>
+                                          </div>
+                                        </div>
+                                        <div className="w-full lg:w-[40%] aspect-video bg-gray-100 rounded-lg border border-dashed border-gray-300 flex items-center justify-center overflow-hidden"><LessonPreview lesson={lesson} /></div>
+                                      </div>
+
+                                      {lesson.exercises && lesson.exercises.length > 0 && (
+                                        <div className="mt-6 border-t border-gray-100 pt-5">
+                                          <h4 className="text-xs font-bold text-gray-500 flex items-center gap-1.5 mb-2 uppercase tracking-wide"><List size={14}/> Bài tập đi kèm</h4>
+                                          {lesson.exercises.map((exercise, eIndex) => renderExerciseForm(exercise, cIndex, sIndex, lIndex, eIndex))}
+                                        </div>
+                                      )}
+                                      <button onClick={() => addExercise(cIndex, sIndex, lIndex)} className="mt-4 text-sm text-blue-600 font-bold hover:underline">+ Thêm Bài tập</button>
+                                    </>
                                   )}
-                                  <button onClick={() => addExercise(cIndex, sIndex, lIndex)} className="mt-4 text-sm text-blue-600 font-bold hover:underline">+ Thêm Bài tập</button>
-                                </>
-                              )}
+                                </div>
+                              )})}
+                              <button onClick={() => addLesson(cIndex, sIndex)} className="text-sm text-gray-500 font-bold hover:text-blue-600">+ Thêm Bài học (Lý thuyết)</button>
                             </div>
-                          )})}
-                          <button onClick={() => addLesson(cIndex, sIndex)} className="text-sm text-gray-500 font-bold hover:text-blue-600">+ Thêm Bài học (Lý thuyết)</button>
+                          )}
                         </div>
-                      )}
+                      )})}
+                      <button onClick={() => addSection(cIndex)} className="text-sm text-orange-500 font-bold hover:text-orange-600">+ Thêm Unit / Buổi Học</button>
                     </div>
-                  )})}
-                  <button onClick={() => addSection(cIndex)} className="text-sm text-orange-500 font-bold hover:text-orange-600">+ Thêm Unit / Buổi Học</button>
+                  )}
                 </div>
-              )}
+              )})}
+              <button onClick={addChapter} className="w-full py-6 border-2 border-dashed border-blue-400 bg-blue-50/30 rounded-2xl text-blue-600 font-extrabold hover:bg-blue-50 hover:border-blue-500 transition-all flex items-center justify-center gap-2 text-lg shadow-sm"><Plus size={28} /> Thêm Chương Mới</button>
             </div>
-          )})}
-          <button onClick={addChapter} className="w-full py-4 border-2 border-dashed border-blue-200 bg-blue-50/50 rounded-xl text-blue-600 font-bold hover:bg-blue-100 transition-colors">+ Thêm Chương (Ngày mới)</button>
+          </div>
         </div>
       </div>
     </div>
