@@ -46,48 +46,31 @@ const getPayOS = () => {
 
 
 // ==========================================
-// 1. API Tạo mã QR thanh toán (HỖ TRỢ GIỎ HÀNG NHIỀU ITEM)
+// 1. API Tạo mã QR thanh toán (HỖ TRỢ GIỎ HÀNG NHIỀU MÓN)
 export const createPaymentLink = async (req, res) => {
   try {
     const payos = getPayOS(); 
-    
-    // Nhận mảng itemIds từ giỏ hàng Frontend
     const { itemIds } = req.body; 
     const userId = req.user._id;
 
-    if (!itemIds || itemIds.length === 0) {
-      return res.status(400).json({ message: 'Giỏ hàng đang trống!' });
-    }
+    if (!itemIds || itemIds.length === 0) return res.status(400).json({ message: 'Giỏ hàng đang trống!' });
 
-    // 1. Quét DB lấy toàn bộ sản phẩm (Cả Combo lẫn Khóa lẻ)
     const foundPackages = await Package.find({ _id: { $in: itemIds } });
     const foundCourses = await Course.find({ _id: { $in: itemIds } });
     const allItems = [...foundPackages, ...foundCourses];
 
-    if (allItems.length === 0) {
-      return res.status(404).json({ message: 'Không tìm thấy sản phẩm hợp lệ nào!' });
-    }
+    if (allItems.length === 0) return res.status(404).json({ message: 'Không tìm thấy sản phẩm!' });
 
-    // 2. Tính tổng tiền
     const totalAmount = allItems.reduce((sum, item) => sum + item.price, 0);
-
     const orderCode = Number(String(Date.now()).slice(-5) + Math.floor(1000 + Math.random() * 9000));
     const domain = process.env.CLIENT_URL || 'http://localhost:5173';
 
-    // 3. Lưu đơn hàng chứa NHIỀU items
     await Order.create({
       orderCode,
       user: userId,
-      items: allItems.map(item => item._id.toString()), // Lưu mảng ID
+      items: allItems.map(item => item._id.toString()),
       amount: totalAmount
     });
-
-    // 4. Cấu hình mảng Items gửi cho PayOS hiển thị trên App Ngân Hàng
-    const payosItems = allItems.map(item => ({
-      name: item.title.substring(0, 25), // PayOS giới hạn ký tự tên sản phẩm
-      quantity: 1,
-      price: item.price
-    }));
 
     const body = {
       orderCode,
@@ -95,7 +78,7 @@ export const createPaymentLink = async (req, res) => {
       description: `Thanh toan ${orderCode}`,
       cancelUrl: `${domain}/pricing`,
       returnUrl: `${domain}/pricing`,
-      items: payosItems
+      items: allItems.map(item => ({ name: item.title.substring(0, 25), quantity: 1, price: item.price }))
     };
 
     const paymentLinkRes = await payos.createPaymentLink(body);
@@ -120,15 +103,14 @@ export const payosWebhook = async (req, res) => {
       const order = await Order.findOne({ orderCode });
       if (!order || order.status === 'PAID') return res.json({ success: true });
 
+      // Cập nhật trạng thái trước để tránh Race Condition (Chạy đè 2 lần)
       order.status = 'PAID';
       await order.save();
 
       const now = new Date();
 
-      // KIỂM TRA & MỞ KHÓA CHO TỪNG SẢN PHẨM TRONG GIỎ HÀNG
+      // MỞ KHÓA CHO TỪNG SẢN PHẨM TRONG GIỎ HÀNG
       for (const itemId of order.items) {
-        
-        // Cấp quyền nếu là Combo
         const isPackage = await Package.findById(itemId);
         if (isPackage) {
           const durationMs = (isPackage.durationDays || 365) * 24 * 60 * 60 * 1000;
@@ -140,10 +122,9 @@ export const payosWebhook = async (req, res) => {
           } else {
             await UserPackage.create({ user: order.user, package: isPackage._id, expireAt: new Date(now.getTime() + durationMs) });
           }
-          continue; // Xong món này thì bỏ qua vòng lặp tiếp
+          continue; 
         } 
         
-        // Cấp quyền nếu là Khóa lẻ
         const isCourse = await Course.findById(itemId);
         if (isCourse) {
           let enrollment = await Enrollment.findOne({ student: order.user, course: isCourse._id });
@@ -153,20 +134,57 @@ export const payosWebhook = async (req, res) => {
         }
       }
     }
-
     res.json({ success: true });
-  } catch (error) {
-    console.error('Webhook Error:', error);
-    res.status(400).json({ success: false });
-  }
+  } catch (error) { res.status(400).json({ success: false }); }
 };
 
 // ==========================================
+// 3. API KIỂM TRA TRẠNG THÁI (ĐÃ FIX LỖI LOCALHOST WEBHOOK)
 export const checkPaymentStatus = async (req, res) => {
   try {
     const { orderCode } = req.params;
     const order = await Order.findOne({ orderCode });
     if (!order) return res.status(404).json({ message: 'Không tìm thấy đơn hàng' });
+
+    // Nếu DB đã ghi nhận thành công
+    if (order.status === 'PAID') return res.json({ status: 'PAID' });
+
+    // FALLBACK THÔNG MINH DÀNH RIÊNG CHO LOCALHOST: Chủ động gọi API check trạng thái từ PayOS
+    try {
+      const payos = getPayOS();
+      const paymentInfo = await payos.getPaymentLinkInformation(orderCode);
+      
+      // Nếu PayOS xác nhận đã nhận tiền nhưng Webhook chưa kịp kích hoạt (do localhost)
+      if (paymentInfo.status === 'PAID' || paymentInfo.status === 'Thành công') {
+        order.status = 'PAID';
+        await order.save();
+
+        const now = new Date();
+        for (const itemId of order.items) {
+          const isPackage = await Package.findById(itemId);
+          if (isPackage) {
+            const durationMs = (isPackage.durationDays || 365) * 24 * 60 * 60 * 1000;
+            let userPkg = await UserPackage.findOne({ user: order.user, package: isPackage._id });
+            if (userPkg) {
+              userPkg.expireAt = userPkg.expireAt > now ? new Date(userPkg.expireAt.getTime() + durationMs) : new Date(now.getTime() + durationMs);
+              await userPkg.save();
+            } else {
+              await UserPackage.create({ user: order.user, package: isPackage._id, expireAt: new Date(now.getTime() + durationMs) });
+            }
+            continue; 
+          } 
+          const isCourse = await Course.findById(itemId);
+          if (isCourse) {
+            let enrollment = await Enrollment.findOne({ student: order.user, course: isCourse._id });
+            if (!enrollment) await Enrollment.create({ student: order.user, course: isCourse._id });
+          }
+        }
+        return res.json({ status: 'PAID' }); // Báo Frontend đóng cửa sổ ngay
+      }
+    } catch (payosErr) {
+      // Bỏ qua lỗi ngầm nếu PayOS link chưa tồn tại
+    }
+
     res.json({ status: order.status });
   } catch (error) { res.status(500).json({ message: 'Lỗi kiểm tra trạng thái', error }); }
 };
@@ -178,11 +196,28 @@ export const getPublicPackages = async (req, res) => {
   } catch (error) { res.status(500).json({ message: "Lỗi tải danh sách gói học" }); }
 };
 
+// 4. LẤY LỊCH SỬ VÀ PHỤC HỒI TÊN SẢN PHẨM TRONG GIỎ
 export const getMyPurchaseHistory = async (req, res) => {
   try {
-    // Để an toàn, chỉ hiển thị lịch sử đơn giản, không populate vì mảng items chứa ID trộn lẫn
-    const orders = await Order.find({ user: req.user._id, status: 'PAID' })
-      .sort({ createdAt: -1 });
-    res.json(orders);
+    const orders = await Order.find({ user: req.user._id, status: 'PAID' }).sort({ createdAt: -1 });
+
+    // Dịch ngược mảng ID thành tên Sản phẩm hiển thị cho đẹp
+    const historyWithDetails = await Promise.all(orders.map(async (order) => {
+      let itemNames = [];
+      for (const itemId of order.items) {
+        let pkg = await Package.findById(itemId);
+        if (pkg) itemNames.push(`[Combo] ${pkg.title}`);
+        else {
+          let crs = await Course.findById(itemId);
+          if (crs) itemNames.push(`[Khóa lẻ] ${crs.title}`);
+        }
+      }
+      return {
+        ...order.toObject(),
+        itemNames: itemNames.length > 0 ? itemNames.join(', ') : 'Sản phẩm đã xóa'
+      };
+    }));
+
+    res.json(historyWithDetails);
   } catch (error) { res.status(500).json({ message: "Lỗi tải lịch sử mua hàng" }); }
 };

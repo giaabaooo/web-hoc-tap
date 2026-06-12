@@ -217,7 +217,7 @@ export const Dashboard = () => {
                 <tbody>
                   {purchaseHistory.map((item, idx) => (
                     <tr key={idx} className="border-t border-gray-100 hover:bg-gray-50/50 transition-colors">
-                      <td className="p-4 font-bold text-gray-800">{item.package?.title || "Khóa học lẻ / Combo (Đã xóa)"}</td>
+                     <td className="p-4 font-bold text-gray-800">{item.itemNames || "Sản phẩm đã bị xóa"}</td>
                       <td className="p-4 text-sm text-gray-500">{new Date(item.createdAt).toLocaleDateString('vi-VN')}</td>
                       <td className="p-4 font-bold text-blue-600">{item.amount?.toLocaleString('vi-VN')} ₫</td>
                       <td className="p-4">

@@ -39,47 +39,86 @@ const getTypeLabel = (type) => {
   }
 };
 
+// LOGIC CHẤM ĐIỂM: QUY ĐỔI MỌI THỨ VỀ THANG ĐIỂM 10
 const calculateExerciseScore = (ex, studentAnsObj) => {
   if (!studentAnsObj || typeof studentAnsObj !== 'object') return 0;
-  let totalScore = 0;
+  
+  // Xử lý riêng cho dạng Flashcard/Vocab: Lật thẻ là có điểm
+  if (ex.type === 'flashcard' || ex.type === 'vocab') {
+      let flippedCount = 0;
+      let totalCards = 0;
+      ex.questions?.forEach((qGroup, qIdx) => {
+         qGroup.subQuestions?.forEach((sq, sqIdx) => {
+            totalCards++;
+            if (studentAnsObj[`${qIdx}-${sqIdx}`]) flippedCount++;
+         });
+      });
+      if (totalCards === 0) return 0;
+      return Math.round((flippedCount / totalCards) * 10 * 10) / 10;
+  }
+
+  let totalEarned = 0;
+  let totalPossible = 0;
   
   ex.questions?.forEach((qGroup, qIdx) => {
      qGroup.subQuestions?.forEach((sq, sqIdx) => {
         const ansKey = `${qIdx}-${sqIdx}`;
         const ans = studentAnsObj[ansKey];
+        const maxPts = 10; // Mỗi ý nhỏ mặc định tính trọng số là 10
+        totalPossible += maxPts;
+
         if (!ans) return;
-        const maxPts = sq.points || 10;
         
         switch(ex.type) {
-          case 'speaking': totalScore += ans.score || 0; break;
+          case 'speaking': 
+            // ans.score trả về AI là theo maxPoints=10
+            totalEarned += (ans.score || 0); 
+            break;
           case 'matching': {
             if (typeof ans === 'object') {
               const rightOriginals = sq.options?.map(opt => opt.split('|')[1]) || [];
               let correctCount = 0;
+              const totalPairs = sq.options?.length || 1;
               sq.options?.forEach((_, i) => { if (ans[i] === rightOriginals[i]) correctCount++; });
-              if (correctCount === (sq.options?.length || 1)) totalScore += maxPts; 
+              // Chia tỷ lệ số câu đúng trên tổng số cặp, nhân thang điểm 10
+              totalEarned += (correctCount / totalPairs) * maxPts; 
             }
             break;
           }
-          case 'essay': totalScore += maxPts; break; 
+          case 'essay': 
+             // Tự luận mặc định tự động có điểm nếu có nhập
+            if (typeof ans === 'string' && ans.trim().length > 0) totalEarned += maxPts; 
+            break; 
           default: { 
             const ansStr = typeof ans === 'object' ? (ans.choice || '') : ans;
-            if (ansStr.toString().trim().toLowerCase() === (sq.correctAnswer || '').toString().trim().toLowerCase()) totalScore += maxPts;
+            if (ansStr.toString().trim().toLowerCase() === (sq.correctAnswer || '').toString().trim().toLowerCase()) {
+               totalEarned += maxPts;
+            }
           }
         }
      });
   });
-  return totalScore;
+  
+  if (totalPossible === 0) return 0;
+  // Quy đổi tổng điểm cả Block bài tập về tối đa là 10 điểm
+  return Math.round((totalEarned / totalPossible) * 10 * 10) / 10;
 };
 
+// COMPONENT HIỂN THỊ ĐA PHƯƠNG TIỆN THÔNG MINH
 const RenderMediaOrText = ({ content }) => {
   if (!content) return null;
-  const isAudio = content.match(/\.(mp3|wav|ogg)$/i);
-  if (content.startsWith('http')) {
-     if (isAudio) return <audio src={content} controls className="h-10 w-full outline-none mt-2" />;
-     return <img src={content} alt="Media" className="max-h-32 w-auto object-contain rounded shadow-sm mx-auto my-2" />;
+  const strContent = String(content);
+  
+  const isAudio = strContent.match(/\.(mp3|wav|ogg)$/i);
+  const isVideo = strContent.match(/\.(mp4|webm|mov|mkv)$/i);
+  const isImage = strContent.match(/\.(jpeg|jpg|gif|png|webp|svg)$/i) || (strContent.startsWith('http') && !strContent.includes(' '));
+
+  if (strContent.startsWith('http') || strContent.startsWith('blob:')) {
+     if (isAudio) return <audio src={strContent} controls className="h-10 w-full outline-none mt-2" />;
+     if (isVideo) return <video src={strContent} controls className="max-h-48 w-full object-contain bg-black rounded shadow-sm mx-auto mt-2" />;
+     if (isImage) return <img src={strContent} alt="Media" className="max-h-48 w-auto object-contain rounded shadow-sm mx-auto my-2" />;
   }
-  return <span className="font-semibold text-gray-700 leading-relaxed text-sm md:text-base">{content}</span>;
+  return <span className="font-semibold text-gray-700 leading-relaxed text-sm md:text-base">{strContent}</span>;
 };
 
 const InteractiveMatching = ({ sq, value = {}, onChange, isSubmitted }) => {
@@ -162,7 +201,7 @@ const InteractiveSpeaking = ({ sq, value, onChange, isSubmitted }) => {
   const audioChunks = useRef([]);
   const speechRecognition = useRef(null);
 
-  const maxPoints = sq.points || 10;
+  const maxPoints = 10;
   const currentTarget = (sq.options && sq.options.length > 0) ? selectedChoice : sq.correctAnswer;
 
   const calculateScore = (spoken, target) => {
@@ -296,7 +335,7 @@ export const CourseDetail = () => {
   
   const [courseData, setCourseData] = useState(null);
   const [enrollment, setEnrollment] = useState(null);
-  const [isOwned, setIsOwned] = useState(false); // TRẠNG THÁI SỞ HỮU KHÓA HỌC
+  const [isOwned, setIsOwned] = useState(false); 
   const [isLoading, setIsLoading] = useState(true);
 
   const [expandedChapters, setExpandedChapters] = useState([]); 
@@ -343,7 +382,7 @@ export const CourseDetail = () => {
         setIsLoading(true);
         if (id === 'mock-1') {
            setCourseData(normalizeCourseData(MOCK_COURSE));
-           setIsOwned(true); // Mock luôn mở
+           setIsOwned(true); 
            const firstChapter = MOCK_COURSE.chapters[0];
            const firstSection = firstChapter?.sections[0];
            const firstLesson = firstSection?.lessons[0];
@@ -356,7 +395,6 @@ export const CourseDetail = () => {
           const normalizedData = normalizeCourseData(response.data.course);
           setCourseData(normalizedData);
 
-          // LOGIC KHÓA BÀI HỌC: Mặc định nếu giá = 0 hoặc Giáo viên/Admin thì cho xem
           if (normalizedData.price === 0 || user?.role === 'teacher' || user?.role === 'admin') {
             setIsOwned(true);
           }
@@ -381,7 +419,6 @@ export const CourseDetail = () => {
       if (token && id !== 'mock-1' && user?.role !== 'teacher' && user?.role !== 'admin') {
         try {
           const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
-          // 1. Kiểm tra khóa đã mua và hạn sử dụng (API trả về mảng)
           const resEnrolls = await axios.get(`${API_URL}/api/courses/student/enrollments`, { headers: { Authorization: `Bearer ${token}` }});
           const enrollmentsList = resEnrolls.data.enrollments || resEnrolls.data || [];
           
@@ -392,8 +429,6 @@ export const CourseDetail = () => {
 
           if (validOwnership) {
              setIsOwned(true);
-             
-             // 2. Kéo tiến độ cũ của riêng khóa này về
              const progressRes = await axios.get(`${API_URL}/api/courses/${id}/check-enrollment`, { headers: { Authorization: `Bearer ${token}` }});
              setEnrollment(progressRes.data);
           }
@@ -412,7 +447,6 @@ export const CourseDetail = () => {
 
   const toggleArray = (arr, setArr, itemId) => setArr(prev => prev.includes(itemId) ? prev.filter(item => item !== itemId) : [...prev, itemId]);
 
-  // HÀM CHUYỂN SANG TRANG THANH TOÁN
   const handleBuyNow = () => {
     if (!token) {
       toast.info("Vui lòng đăng nhập để mua khóa học");
@@ -516,7 +550,7 @@ export const CourseDetail = () => {
 
   const renderStudentExercise = (ex, index) => {
     const isLocked = isLessonCompleted(activeLesson._id) && !isRedoing;
-    const blockPoints = ex.questions?.reduce((sum, qGroup) => sum + (qGroup.subQuestions?.reduce((s, sq) => s + (sq.points || 0), 0) || 0), 0) || 0;
+    const blockPoints = 10; // Quy đổi mặc định về thang 10
 
     return (
       <div key={index} id={`ex-${index}`} className="bg-white border border-gray-200 rounded-2xl p-0 shadow-sm mb-6 overflow-hidden">
@@ -525,12 +559,14 @@ export const CourseDetail = () => {
             <span className="bg-orange-500 text-white w-7 h-7 rounded-md flex items-center justify-center font-extrabold text-sm shadow-sm">{index + 1}</span>
             <span className="font-extrabold text-gray-800 uppercase tracking-wide text-sm">Bài tập {index + 1}: {getTypeLabel(ex.type)}</span>
           </div>
-          {blockPoints > 0 && <span className="bg-orange-100 text-orange-700 text-xs font-bold px-3 py-1.5 rounded-md border border-orange-200 shadow-sm">{blockPoints} điểm</span>}
+          <span className="bg-orange-100 text-orange-700 text-xs font-bold px-3 py-1.5 rounded-md border border-orange-200 shadow-sm">{blockPoints} điểm</span>
         </div>
         
         <div className="p-6">
           {ex.instruction && <p className="text-sm font-medium text-gray-700 mb-5 bg-yellow-50/50 border-l-4 border-yellow-400 p-3 rounded">{ex.instruction}</p>}
           {ex.passage && <div className="mb-5 bg-gray-50 p-4 rounded-xl border border-gray-200"><RenderMediaOrText content={ex.passage} /></div>}
+          
+          {/* Audio đính kèm toàn cục của Block Listening */}
           {ex.contentUrl && ex.type === 'listening' && (
              <div className="bg-gray-100 rounded-full p-2 mb-6 max-w-md border border-gray-200 shadow-inner">
                <audio src={`${ex.contentUrl}${ex.endTime ? `#t=${ex.startTime || 0},${ex.endTime}` : ''}`} controls className="w-full outline-none" />
@@ -540,6 +576,8 @@ export const CourseDetail = () => {
           <div className="space-y-8">
              {ex.questions?.map((qGroup, qIdx) => (
                 <div key={qIdx} className="border border-gray-100 rounded-xl p-5 shadow-sm">
+                   
+                   {/* Câu hỏi chung của Nhóm (Q Group) */}
                    {(qGroup.question || qGroup.contentUrl || qGroup.audioUrl) && (
                       <div className="mb-5 bg-blue-50/40 p-4 rounded-lg border border-blue-100">
                          {qGroup.question && <p className="font-bold text-gray-800 mb-3 text-lg leading-relaxed">{qGroup.question}</p>}
@@ -561,7 +599,10 @@ export const CourseDetail = () => {
                                
                                {(ex.type === 'multiple_choice' || ex.type === 'reading') && (
                                   <div>
-                                     {sq.question && <h5 className="font-bold text-gray-800 mb-4 text-base">{sq.question}</h5>}
+                                     {sq.question && <h5 className="font-bold text-gray-800 mb-3 text-base">{sq.question}</h5>}
+                                     {sq.contentUrl && <div className="mb-4"><RenderMediaOrText content={sq.contentUrl} /></div>}
+                                     {sq.audioUrl && <div className="mb-4"><RenderMediaOrText content={sq.audioUrl} /></div>}
+                                     
                                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                         {sq.options?.map((opt, oIdx) => {
                                           let stateClass = "border-gray-200 hover:bg-blue-50 bg-white";
@@ -573,7 +614,9 @@ export const CourseDetail = () => {
                                           return (
                                             <label key={oIdx} className={`flex items-center gap-3 p-4 border-2 rounded-xl cursor-pointer transition-all shadow-sm ${stateClass}`}>
                                               <input type="radio" disabled={isLocked} checked={studentAns === opt} onChange={() => handleAnswerChange(ex._id, ansKey, opt)} className="w-5 h-5 text-blue-600 flex-shrink-0" />
-                                              <RenderMediaOrText content={opt} />
+                                              <div className="w-full flex justify-center sm:justify-start">
+                                                <RenderMediaOrText content={opt} />
+                                              </div>
                                             </label>
                                           )
                                         })}
@@ -583,6 +626,8 @@ export const CourseDetail = () => {
 
                                {ex.type === 'fill_blank' && (
                                   <div>
+                                     {sq.contentUrl && <div className="mb-4"><RenderMediaOrText content={sq.contentUrl} /></div>}
+                                     {sq.audioUrl && <div className="mb-4"><RenderMediaOrText content={sq.audioUrl} /></div>}
                                      <h5 className="font-bold text-gray-800 mb-4 leading-relaxed flex flex-wrap items-center">
                                        {sq.question?.split('___').map((part, i, arr) => (
                                          <React.Fragment key={i}>
@@ -599,7 +644,9 @@ export const CourseDetail = () => {
 
                                {ex.type === 'listening' && (
                                   <div>
-                                     {sq.question && <h5 className="font-bold text-gray-800 mb-4">{sq.question}</h5>}
+                                     {sq.question && <h5 className="font-bold text-gray-800 mb-3">{sq.question}</h5>}
+                                     {sq.contentUrl && <div className="mb-4"><RenderMediaOrText content={sq.contentUrl} /></div>}
+                                     {sq.audioUrl && <div className="mb-4"><RenderMediaOrText content={sq.audioUrl} /></div>}
                                      <input type="text" disabled={isLocked} value={studentAns || ''} onChange={(e) => handleAnswerChange(ex._id, ansKey, e.target.value)} className={`w-full p-4 border-2 rounded-xl outline-none font-bold text-gray-700 shadow-sm ${isLocked ? (studentAns?.toLowerCase() === sq.correctAnswer?.toLowerCase() ? 'border-green-500 bg-green-50' : 'border-red-400 bg-red-50') : 'border-gray-200 focus:border-blue-400 bg-white'}`} placeholder="Nhập câu trả lời..." />
                                      {isLocked && studentAns?.toLowerCase() !== sq.correctAnswer?.toLowerCase() && <p className="text-green-600 text-sm font-bold mt-2">Đáp án đúng: {sq.correctAnswer}</p>}
                                   </div>
@@ -607,16 +654,27 @@ export const CourseDetail = () => {
 
                                {ex.type === 'matching' && (
                                   <div>
-                                     {sq.question && <h5 className="font-bold text-gray-800">{sq.question}</h5>}
+                                     {sq.question && <h5 className="font-bold text-gray-800 mb-3">{sq.question}</h5>}
+                                     {sq.contentUrl && <div className="mb-4"><RenderMediaOrText content={sq.contentUrl} /></div>}
+                                     {sq.audioUrl && <div className="mb-4"><RenderMediaOrText content={sq.audioUrl} /></div>}
                                      <InteractiveMatching sq={sq} value={studentAns || {}} onChange={(val) => handleAnswerChange(ex._id, ansKey, val)} isSubmitted={isLocked} />
                                   </div>
                                )}
 
-                               {ex.type === 'speaking' && <InteractiveSpeaking sq={sq} value={studentAns || {}} onChange={(val) => handleAnswerChange(ex._id, ansKey, val)} isSubmitted={isLocked} />}
+                               {ex.type === 'speaking' && (
+                                  <div>
+                                     {sq.contentUrl && <div className="mb-4"><RenderMediaOrText content={sq.contentUrl} /></div>}
+                                     {sq.audioUrl && <div className="mb-4"><RenderMediaOrText content={sq.audioUrl} /></div>}
+                                     <InteractiveSpeaking sq={sq} value={studentAns || {}} onChange={(val) => handleAnswerChange(ex._id, ansKey, val)} isSubmitted={isLocked} />
+                                  </div>
+                               )}
 
                                {(ex.type === 'flashcard' || ex.type === 'vocab') && (
                                   <div className="flex flex-col items-center justify-center py-6">
-                                     <div onClick={() => setFlippedCards(prev => ({...prev, [`${ex._id}-${ansKey}`]: !prev[`${ex._id}-${ansKey}`]}))} className="cursor-pointer group relative w-full max-w-sm aspect-[4/3] perspective-1000">
+                                     <div onClick={() => {
+                                         setFlippedCards(prev => ({...prev, [`${ex._id}-${ansKey}`]: !prev[`${ex._id}-${ansKey}`]}));
+                                         if (!isLocked) handleAnswerChange(ex._id, ansKey, true); // Lưu trạng thái đã lật để cộng điểm 10
+                                     }} className="cursor-pointer group relative w-full max-w-sm aspect-[4/3] perspective-1000">
                                        <div className={`w-full h-full transition-transform duration-700 transform-style-3d shadow-lg rounded-3xl ${flippedCards[`${ex._id}-${ansKey}`] ? 'rotate-y-180' : ''}`}>
                                          <div className="absolute inset-0 backface-hidden bg-white border border-gray-200 rounded-3xl flex flex-col items-center justify-center p-6 hover:shadow-xl transition-shadow">
                                             <RenderMediaOrText content={sq.question} />
@@ -638,6 +696,8 @@ export const CourseDetail = () => {
                                {ex.type === 'essay' && (
                                  <div>
                                    <h4 className="text-lg font-bold text-gray-800 mb-4"><Edit3 size={20} className="inline mr-2 text-blue-500 -mt-1" />{sq.question}</h4>
+                                   {sq.contentUrl && <div className="mb-4"><RenderMediaOrText content={sq.contentUrl} /></div>}
+                                   {sq.audioUrl && <div className="mb-4"><RenderMediaOrText content={sq.audioUrl} /></div>}
                                    <textarea disabled={isLocked} value={studentAns || ''} onChange={(e) => handleAnswerChange(ex._id, ansKey, e.target.value)} className={`w-full p-4 border-2 rounded-xl outline-none resize-y font-medium transition-colors min-h-[150px] shadow-sm ${isLocked ? 'bg-gray-100 border-gray-200 text-gray-500' : 'bg-white border-gray-200 focus:border-blue-400 text-gray-700'}`} placeholder="Bắt đầu viết tự luận..." />
                                  </div>
                                )}
@@ -670,7 +730,6 @@ export const CourseDetail = () => {
               </div>
             </div>
 
-            {/* BUTTON ĐIỀU HƯỚNG THEO TRẠNG THÁI */}
             {!isOwned ? (
               <button onClick={handleBuyNow} className="px-6 py-2.5 bg-green-600 text-white rounded-lg font-bold shadow-sm hover:bg-green-700 transition-colors text-sm">Mua ngay</button>
             ) : !enrollment ? (
@@ -687,7 +746,6 @@ export const CourseDetail = () => {
       </div>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        {/* LOGIC HIỂN THỊ: NẾU CHƯA SỞ HỮU -> HIỆN KHÓA. NẾU SỞ HỮU -> HIỆN UI TƯƠNG TÁC */}
         {!isOwned ? (
           <div className="flex flex-col lg:flex-row gap-6 items-stretch w-full">
             <div className="w-full lg:w-1/3 bg-white border border-slate-100 rounded-2xl p-6 shadow-sm flex flex-col">
@@ -716,7 +774,6 @@ export const CourseDetail = () => {
           </div>
         ) : (
           <div className="flex flex-col lg:flex-row gap-6">
-            {/* CỘT TRÁI (Lộ trình học) - CỦA GIAO DIỆN TƯƠNG TÁC */}
             <aside className="w-full lg:w-[380px] flex-shrink-0 bg-white rounded-xl shadow-sm border border-gray-200 h-fit sticky top-20 max-h-[80vh] flex flex-col">
               <div className="p-4 border-b border-gray-100 bg-gray-50 rounded-t-xl">
                 <h3 className="font-extrabold text-sm text-gray-800 uppercase tracking-wide">Lộ trình học</h3>
@@ -781,11 +838,10 @@ export const CourseDetail = () => {
                                               if (completed) {
                                                  const prog = enrollment?.progress?.find(p => p.lessonId === lesson._id);
                                                  const ansObj = prog?.answers?.[ex._id];
-                                                 const earned = calculateExerciseScore(ex, ansObj);
-                                                 const maxPts = ex.questions?.reduce((sum, qGroup) => sum + (qGroup.subQuestions?.reduce((s, sq) => s + (sq.points || 0), 0) || 0), 0) || 0;
+                                                 const earned = calculateExerciseScore(ex, ansObj); // Luôn trả về max 10 đ
                                                  
                                                  displayedScore = `${earned} đ`;
-                                                 if (earned >= maxPts && maxPts > 0) scoreClass = "text-green-700 bg-green-100 border-green-200";
+                                                 if (earned === 10) scoreClass = "text-green-700 bg-green-100 border-green-200";
                                                  else if (earned > 0) scoreClass = "text-yellow-700 bg-yellow-100 border-yellow-200";
                                                  else scoreClass = "text-red-700 bg-red-100 border-red-200";
                                               }
@@ -817,7 +873,6 @@ export const CourseDetail = () => {
               </div>
             </aside>
 
-            {/* CỘT PHẢI (Nội dung bài học) - CỦA GIAO DIỆN TƯƠNG TÁC */}
             <main className="w-full flex-1 flex flex-col gap-6">
               {!activeLesson ? (
                 <div className="bg-white p-8 rounded-xl border border-gray-200 shadow-sm text-center">
@@ -862,8 +917,7 @@ export const CourseDetail = () => {
                                
                                if (isLessonCompleted(activeLesson._id) && !isRedoing) {
                                   const earned = calculateExerciseScore(ex, studentAnsObj);
-                                  const maxPts = ex.questions?.reduce((sum, qGroup) => sum + (qGroup.subQuestions?.reduce((s, sq) => s + (sq.points || 0), 0) || 0), 0) || 0;
-                                  if (earned >= maxPts && maxPts > 0) btnClass = 'bg-green-500 text-white border-green-500';
+                                  if (earned === 10) btnClass = 'bg-green-500 text-white border-green-500';
                                   else if (earned > 0) btnClass = 'bg-yellow-500 text-white border-yellow-500';
                                   else btnClass = 'bg-red-500 text-white border-red-500'; 
                                } else if (isAns) { btnClass = 'bg-blue-500 text-white border-blue-500'; }

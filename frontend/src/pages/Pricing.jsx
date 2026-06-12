@@ -1,6 +1,6 @@
 // src/pages/Pricing.jsx
 import React, { useState, useEffect } from 'react';
-import { Search, Link as LinkIcon, X, ShoppingCart, CreditCard, Trash2, Tag } from 'lucide-react';
+import { Search, Link as LinkIcon, X, ShoppingCart, CreditCard, Trash2, Tag, CheckCircle2 } from 'lucide-react';
 import { toast } from 'react-toastify';
 import { useNavigate, useLocation } from 'react-router-dom';
 import axios from 'axios';
@@ -14,6 +14,7 @@ export const Pricing = () => {
   const [isProcessing, setIsProcessing] = useState(false);
 
   const [allItems, setAllItems] = useState([]);
+  const [ownedIds, setOwnedIds] = useState([]); // THÊM STATE ĐỂ KIỂM TRA ĐỒ ĐÃ MUA
   const [filter, setFilter] = useState('all'); 
   const [cartItems, setCartItems] = useState([]);
 
@@ -36,13 +37,22 @@ export const Pricing = () => {
         
         setAllItems(mergedItems);
 
-        // AUTO ADD VÀO GIỎ TỪ NÚT "MUA NGAY" BÊN COURSE DETAIL
+        // KÉO DANH SÁCH NHỮNG MÓN ĐÃ MUA TỪ LỊCH SỬ
+        const token = localStorage.getItem('token');
+        if (token && token !== 'null') {
+          try {
+            const historyRes = await axios.get(`${API_URL}/api/payments/history`, { headers: { Authorization: `Bearer ${token}` } });
+            // Gom tất cả các ID sản phẩm đã mua vào 1 mảng
+            const boughtIds = historyRes.data.reduce((acc, order) => acc.concat(order.items || []), []);
+            setOwnedIds(boughtIds);
+          } catch(e) {}
+        }
+
+        // TỰ ĐỘNG THÊM VÀO GIỎ TỪ NÚT "MUA NGAY" BÊN COURSE DETAIL
         if (location.state?.autoAddCourseId) {
            const courseToAdd = mergedItems.find(i => i._id === location.state.autoAddCourseId);
            if (courseToAdd) {
              setCartItems([courseToAdd]);
-             toast.success("Đã thêm khóa học vào giỏ!");
-             // Xóa state để không bị add lại nếu F5
              window.history.replaceState({}, document.title);
            }
         }
@@ -76,7 +86,6 @@ export const Pricing = () => {
 
     try {
       setIsProcessing(true);
-      // GỬI MẢNG ID LÊN SERVER
       const payload = { itemIds: cartItems.map(item => item._id) };
       const res = await axios.post(`${API_URL}/api/payments/create`, payload, { 
         headers: { Authorization: `Bearer ${token}` } 
@@ -99,10 +108,13 @@ export const Pricing = () => {
           headers: { Authorization: `Bearer ${token}` }
         });
 
+        // Nhờ FALLBACK bên Backend, trạng thái này sẽ nhảy ngay khi quét QR xong!
         if (res.data.status === 'PAID') {
           clearInterval(interval);
           setShowQRModal(false);
-          setCartItems([]); 
+          // Thêm các món vừa mua vào danh sách đã sở hữu để UI khóa lại
+          setOwnedIds(prev => [...prev, ...cartItems.map(i => i._id)]); 
+          setCartItems([]); // Tự động xóa giỏ hàng
           toast.success('Thanh toán thành công! Hệ thống đã mở khóa nội dung.');
         }
       } catch (err) {}
@@ -161,6 +173,7 @@ export const Pricing = () => {
               ) : (
                 displayedItems.map(item => {
                   const isInCart = cartItems.find(i => i._id === item._id);
+                  const isOwned = ownedIds.includes(item._id); // KIỂM TRA ĐÃ MUA
 
                   return (
                   <div key={item._id} className={`bg-white border shadow-sm rounded-2xl p-6 flex flex-col md:flex-row items-start md:items-center justify-between gap-6 transition-all hover:shadow-md ${isInCart ? 'border-blue-400 ring-2 ring-blue-50' : 'border-slate-100 hover:border-blue-300'}`}>
@@ -175,9 +188,18 @@ export const Pricing = () => {
 
                     <div className="w-full md:w-auto flex flex-col items-start md:items-end gap-4 shrink-0">
                       <div className="font-extrabold text-blue-600 text-2xl tracking-tight">{item.price.toLocaleString('vi-VN')} ₫</div>
-                      <button onClick={() => handleToggleCart(item)} className={`w-full md:w-auto text-white text-sm font-bold px-6 py-2.5 rounded-full flex items-center justify-center gap-2 transition-all shadow-sm ${isInCart ? 'bg-red-500 hover:bg-red-600' : 'bg-blue-500 hover:bg-blue-600'}`}>
-                        {isInCart ? <><Trash2 size={16}/> Bỏ khỏi giỏ</> : <><ShoppingCart size={16}/> Thêm vào giỏ</>}
-                      </button>
+                      
+                      {/* LOGIC NÚT ĐÃ SỞ HỮU HOẶC THÊM VÀO GIỎ */}
+                      {isOwned ? (
+                        <button disabled className="w-full md:w-auto text-green-700 bg-green-50 text-sm font-bold px-6 py-2.5 rounded-full flex items-center justify-center gap-2 shadow-sm border border-green-200 cursor-not-allowed">
+                          <CheckCircle2 size={16}/> Đã sở hữu
+                        </button>
+                      ) : (
+                        <button onClick={() => handleToggleCart(item)} className={`w-full md:w-auto text-white text-sm font-bold px-6 py-2.5 rounded-full flex items-center justify-center gap-2 transition-all shadow-sm ${isInCart ? 'bg-red-500 hover:bg-red-600' : 'bg-blue-500 hover:bg-blue-600'}`}>
+                          {isInCart ? <><Trash2 size={16}/> Bỏ khỏi giỏ</> : <><ShoppingCart size={16}/> Thêm vào giỏ</>}
+                        </button>
+                      )}
+
                     </div>
                   </div>
                 )})

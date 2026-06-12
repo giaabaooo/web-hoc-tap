@@ -166,7 +166,11 @@ export const EditCourse = () => {
                            startTime: ex.startTime || 0, endTime: ex.endTime || 0,
                            questions: ex.questions.map(q => ({
                              ...q, startTime: q.startTime || 0, endTime: q.endTime || 0,
-                             subQuestions: (q.subQuestions || []).map(sq => ({ ...sq, startTime: sq.startTime || 0, endTime: sq.endTime || 0 }))
+                             subQuestions: (q.subQuestions || []).map(sq => {
+                               let safeOpts = sq.options || [];
+                               if (['multiple_choice', 'listening', 'reading', 'speaking'].includes(ex.type) && safeOpts.length === 0) safeOpts = ['', '', '', ''];
+                               return { ...sq, options: safeOpts, startTime: sq.startTime || 0, endTime: sq.endTime || 0 };
+                             })
                            }))
                          };
                        }
@@ -179,9 +183,12 @@ export const EditCourse = () => {
                        if (ex.type === 'reading') {
                           newQuestions = [{ question: ex.passage || '', contentUrl: '', audioUrl: '', startTime: 0, endTime: 0, subQuestions: oldSubQ.map(sq => ({...sq, startTime: 0, endTime: 0})) }];
                        } else {
+                          let safeOldOpts = oldOpts;
+                          if (['multiple_choice', 'listening', 'reading', 'speaking'].includes(ex.type) && safeOldOpts.length === 0) safeOldOpts = ['', '', '', ''];
+
                           newQuestions = [{
                              question: ex.question || '', contentUrl: ex.contentUrl || '', audioUrl: '', startTime: 0, endTime: 0,
-                             subQuestions: [{ question: '', options: oldOpts, correctAnswer: oldCorrect, points: ex.points || 10, contentUrl: '', audioUrl: '', startTime: 0, endTime: 0 }]
+                             subQuestions: [{ question: '', options: safeOldOpts, correctAnswer: oldCorrect, points: ex.points || 10, contentUrl: '', audioUrl: '', startTime: 0, endTime: 0 }]
                           }];
                        }
                        return { ...ex, startTime: ex.startTime || 0, endTime: ex.endTime || 0, questions: newQuestions };
@@ -338,9 +345,8 @@ export const EditCourse = () => {
     if (field === 'type') {
       const type = value; 
       let opts = [];
-      if (['multiple_choice', 'listening', 'reading'].includes(type)) opts = ['', '', '', '']; 
+      if (['multiple_choice', 'listening', 'reading', 'speaking'].includes(type)) opts = ['', '', '', '']; 
       else if (type === 'matching') opts = ['|', '|', '|', '|']; 
-      else if (type === 'speaking') opts = []; 
       
       newChapters[cIndex].sections[sIndex].lessons[lIndex].exercises[eIndex].questions = [{
          question: '', contentUrl: '', audioUrl: '', startTime: 0, endTime: 0,
@@ -355,9 +361,8 @@ export const EditCourse = () => {
     const newChapters = [...chapters];
     const ex = newChapters[cIndex].sections[sIndex].lessons[lIndex].exercises[eIndex];
     let opts = [];
-    if (['multiple_choice', 'listening', 'reading'].includes(ex.type)) opts = ['', '', '', ''];
+    if (['multiple_choice', 'listening', 'reading', 'speaking'].includes(ex.type)) opts = ['', '', '', ''];
     else if (ex.type === 'matching') opts = ['|', '|', '|', '|'];
-    else if (ex.type === 'speaking') opts = [];
 
     ex.questions.push({
       question: '', contentUrl: '', audioUrl: '', startTime: 0, endTime: 0,
@@ -372,9 +377,8 @@ export const EditCourse = () => {
     const newChapters = [...chapters];
     const ex = newChapters[cIndex].sections[sIndex].lessons[lIndex].exercises[eIndex];
     let opts = [];
-    if (['multiple_choice', 'listening', 'reading'].includes(ex.type)) opts = ['', '', '', ''];
+    if (['multiple_choice', 'listening', 'reading', 'speaking'].includes(ex.type)) opts = ['', '', '', ''];
     else if (ex.type === 'matching') opts = ['|', '|', '|', '|'];
-    else if (ex.type === 'speaking') opts = [];
 
     ex.questions[qIndex].subQuestions.push({ question: '', options: opts, correctAnswer: '', points: 10, contentUrl: '', audioUrl: '', startTime: 0, endTime: 0 });
     setChapters(newChapters);
@@ -490,7 +494,7 @@ export const EditCourse = () => {
                        </div>
                     </div>
 
-                    {(exType === 'multiple_choice' || exType === 'listening' || exType === 'reading') && (
+                    {(exType === 'multiple_choice' || exType === 'listening' || exType === 'reading' || exType === 'speaking') && (
                       <div className="space-y-5">
                         <div>
                           <textarea value={sq.question} onChange={(e) => updateSubQuestion(cIndex, sIndex, lIndex, eIndex, qIndex, sqIndex, 'question', e.target.value)} placeholder={`Nhập nội dung cho ý nhỏ ${sqIndex + 1}...`} className="w-full text-sm font-semibold outline-none border border-gray-300 rounded-lg p-3 focus:border-blue-500 bg-gray-50" rows="2" />
@@ -499,8 +503,12 @@ export const EditCourse = () => {
                         
                         <div>
                           <div className="flex justify-between items-center mb-3">
-                            <label className="block text-xs font-bold text-gray-500 uppercase">Các lựa chọn đáp án</label>
-                            <span className="text-[10px] bg-green-50 text-green-700 px-2 py-0.5 rounded border border-green-200">Bấm tick xanh để chọn đáp án đúng</span>
+                            <label className="block text-xs font-bold text-gray-500 uppercase">
+                               Các lựa chọn đáp án {exType === 'speaking' && '(Học sinh sẽ đọc)'}
+                            </label>
+                            <span className="text-[10px] bg-green-50 text-green-700 px-2 py-0.5 rounded border border-green-200">
+                               {exType === 'speaking' ? 'Bấm tick xanh để AI lấy nội dung chấm điểm đọc' : 'Bấm tick xanh để chọn đáp án đúng'}
+                            </span>
                           </div>
                           
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -561,19 +569,6 @@ export const EditCourse = () => {
                             )
                           })}
                           <button onClick={() => addOption(cIndex, sIndex, lIndex, eIndex, qIndex, sqIndex, true)} className="text-sm text-blue-700 font-bold bg-white px-4 py-2 rounded-lg border border-dashed border-blue-300 hover:bg-blue-50">+ Thêm cặp nối</button>
-                        </div>
-                      </div>
-                    )}
-
-                    {exType === 'speaking' && (
-                      <div className="space-y-4">
-                        <div>
-                          <input type="text" value={sq.question} onChange={(e) => updateSubQuestion(cIndex, sIndex, lIndex, eIndex, qIndex, sqIndex, 'question', e.target.value)} placeholder="Nhập câu cần đọc..." className="w-full text-sm font-bold outline-none border border-gray-300 rounded-lg p-3 bg-gray-50" />
-                          {renderSubQuestionMedia(sq, sqIndex, cIndex, sIndex, lIndex, eIndex, qIndex)}
-                        </div>
-                        <div>
-                          <label className="block text-[10px] font-bold text-gray-500 mb-1 uppercase">Keyword / Đoạn text gốc để AI chấm điểm</label>
-                          <input type="text" value={sq.correctAnswer} onChange={(e) => updateSubQuestion(cIndex, sIndex, lIndex, eIndex, qIndex, sqIndex, 'correctAnswer', e.target.value)} placeholder="Nhập text để so sánh AI..." className="w-full text-sm font-mono border border-gray-300 p-2.5 rounded-lg outline-none text-green-700 font-bold" />
                         </div>
                       </div>
                     )}
