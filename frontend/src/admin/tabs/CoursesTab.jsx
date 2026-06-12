@@ -204,7 +204,7 @@ export const CoursesTab = () => {
                             <ShoppingCart size={14} /> Bán hàng
                           </button>
                           <Link
-                            to={`/edit-course/${course._id}?tab=courses`}
+                            to={`edit-course/${course._id}?tab=courses`}
                             className="inline-flex items-center gap-1.5 text-xs font-bold text-blue-600 bg-blue-50 hover:bg-blue-600 hover:text-white px-3 py-2 rounded-xl transition-all border border-blue-100 shadow-sm"
                           >
                             <FileEdit size={14} /> Nội dung
@@ -372,35 +372,22 @@ export const CoursesTab = () => {
               {/* Row 5: Chọn Khóa học */}
 
               <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl mt-4">
-
                 <label className="block text-sm font-semibold text-slate-700 mb-2">Chọn Khóa học gán vào ({comboForm.courses.length} đã chọn)</label>
-
                 <div className="space-y-2 max-h-40 overflow-y-auto custom-scrollbar pr-2">
-
-                  {courses.map(c => (
-
-                    <label key={c._id} className="flex items-center gap-3 p-2 bg-white border border-slate-200 rounded-lg cursor-pointer hover:border-emerald-300 transition-colors">
-
-                      <input
-
-                        type="checkbox"
-
-                        checked={comboForm.courses.includes(c._id)}
-
-                        onChange={(e) => handleCourseToggle(c._id, e.target.checked)}
-
-                        className="w-4 h-4 text-emerald-600 rounded border-slate-300"
-
-                      />
-
-                      <span className="text-sm font-medium text-slate-700">{c.title}</span>
-
-                    </label>
-
-                  ))}
-
+                  {courses
+                    .filter(c => c.isPublished) // CHỈ LẤY CÁC KHÓA HỌC ĐÃ PUBLIC
+                    .map(c => (
+                      <label key={c._id} className="flex items-center gap-3 p-2 bg-white border border-slate-200 rounded-lg cursor-pointer hover:border-emerald-300 transition-colors">
+                        <input
+                          type="checkbox"
+                          checked={comboForm.courses.includes(c._id)}
+                          onChange={(e) => handleCourseToggle(c._id, e.target.checked)}
+                          className="w-4 h-4 text-emerald-600 rounded border-slate-300"
+                        />
+                        <span className="text-sm font-medium text-slate-700">{c.title}</span>
+                      </label>
+                    ))}
                 </div>
-
               </div>
 
 

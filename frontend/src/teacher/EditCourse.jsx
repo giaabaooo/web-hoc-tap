@@ -143,6 +143,11 @@ export const EditCourse = () => {
   const [isAutoSaving, setIsAutoSaving] = useState(false);
   const [lastSavedTime, setLastSavedTime] = useState(null);
 
+  // Xử lý logic chiều cao và khoảng cách dính (sticky) cho Admin
+  const isAdmin = user?.role === 'admin';
+  const stickyTopClass = isAdmin ? 'top-0' : 'top-[70px]';
+  const sidebarHeightClass = isAdmin ? 'h-screen' : 'h-[calc(100vh-70px)]';
+
   useEffect(() => {
     const fetchCourseData = async () => {
       try {
@@ -204,13 +209,13 @@ export const EditCourse = () => {
         setLastSavedData(JSON.stringify({ courseInfo: info, chapters: chaps }));
       } catch (error) { 
         toast.error('Không tải được dữ liệu!'); 
-        navigate('/teacher-dashboard'); 
+        navigate(isAdmin ? '/admin-dashboard?tab=courses' : '/teacher-dashboard'); 
       } finally { 
         setIsLoading(false); 
       }
     };
     fetchCourseData();
-  }, [id, API_URL, navigate]);
+  }, [id, API_URL, navigate, isAdmin]);
 
   useEffect(() => {
     if (isLoading) return;
@@ -229,7 +234,7 @@ export const EditCourse = () => {
   }, [courseInfo, chapters, lastSavedData, isLoading]);
 
   const goBack = () => {
-    if (user?.role === 'admin') navigate('/admin-dashboard?tab=courses');
+    if (isAdmin) navigate('/admin-dashboard?tab=courses');
     else navigate('/teacher-dashboard');
   };
 
@@ -255,7 +260,7 @@ export const EditCourse = () => {
       
       const el = document.getElementById(elId);
       if (el) {
-        const yOffset = -150; 
+        const yOffset = isAdmin ? -80 : -150; 
         const y = el.getBoundingClientRect().top + window.scrollY + yOffset;
         window.scrollTo({ top: y, behavior: 'smooth' });
       }
@@ -573,6 +578,19 @@ export const EditCourse = () => {
                       </div>
                     )}
 
+                    {exType === 'speaking' && (
+                      <div className="space-y-4">
+                        <div>
+                          <input type="text" value={sq.question} onChange={(e) => updateSubQuestion(cIndex, sIndex, lIndex, eIndex, qIndex, sqIndex, 'question', e.target.value)} placeholder="Nhập câu cần đọc..." className="w-full text-sm font-bold outline-none border border-gray-300 rounded-lg p-3 bg-gray-50" />
+                          {renderSubQuestionMedia(sq, sqIndex, cIndex, sIndex, lIndex, eIndex, qIndex)}
+                        </div>
+                        <div>
+                          <label className="block text-[10px] font-bold text-gray-500 mb-1 uppercase">Keyword / Đoạn text gốc để AI chấm điểm</label>
+                          <input type="text" value={sq.correctAnswer} onChange={(e) => updateSubQuestion(cIndex, sIndex, lIndex, eIndex, qIndex, sqIndex, 'correctAnswer', e.target.value)} placeholder="Nhập text để so sánh AI..." className="w-full text-sm font-mono border border-gray-300 p-2.5 rounded-lg outline-none text-green-700 font-bold" />
+                        </div>
+                      </div>
+                    )}
+
                     {(exType === 'flashcard' || exType === 'vocab') && (
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                          <div>
@@ -701,7 +719,7 @@ export const EditCourse = () => {
   return (
     <div className="flex w-full font-sans min-h-screen bg-[#f8fafc]">
       {isTocOpen && (
-        <aside className="w-72 flex-shrink-0 bg-white border-r border-gray-200 shadow-sm flex flex-col z-40 sticky top-[70px] h-[calc(100vh-70px)] overflow-y-auto custom-scrollbar">
+        <aside className={`w-72 flex-shrink-0 bg-white border-r border-gray-200 shadow-sm flex flex-col z-40 sticky ${stickyTopClass} ${sidebarHeightClass} overflow-y-auto custom-scrollbar`}>
           <div className="flex items-center justify-between p-4 border-b">
             <h3 className="font-bold text-gray-700 text-sm uppercase tracking-wide">Mục lục khóa học</h3>
             <button onClick={() => setIsTocOpen(false)} className="text-gray-400 hover:text-gray-800 p-1 rounded-md hover:bg-gray-100"><X size={16}/></button>
@@ -742,7 +760,7 @@ export const EditCourse = () => {
       )}
 
       <div className="flex-1 flex flex-col relative min-w-0">
-        <div className="sticky top-[70px] bg-white border-b border-gray-200 px-4 md:px-8 py-3 shadow-sm flex items-center justify-between z-40 transition-all">
+        <div className={`sticky ${stickyTopClass} bg-white border-b border-gray-200 px-4 md:px-8 py-3 shadow-sm flex items-center justify-between z-40 transition-all`}>
           <div className="flex items-center gap-3">
             {!isTocOpen && <button onClick={() => setIsTocOpen(true)} className="p-2 hover:bg-gray-100 rounded text-gray-500 transition-colors"><AlignLeft size={20} /></button>}
             <h2 className="text-xl font-extrabold text-gray-800 tracking-tight truncate max-w-xs md:max-w-md hidden sm:block">
@@ -760,6 +778,10 @@ export const EditCourse = () => {
               )}
             </div>
             <div className="h-6 w-px bg-gray-200 mx-1 hidden sm:block"></div>
+            
+            {/* THÊM NÚT ĐỂ ADMIN/TEACHER QUAY LẠI */}
+            <button onClick={goBack} className="flex items-center gap-1 text-gray-500 hover:text-gray-800 px-3 py-2 rounded-lg transition-colors font-bold text-sm"><ArrowLeft size={16}/> Thoát</button>
+            
             <button onClick={() => handleUpdateCourse(false)} disabled={isSavingDraft || isUploading || isAutoSaving} className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold border border-gray-300 text-gray-700 hover:bg-gray-50 transition-colors bg-white shadow-sm disabled:opacity-50"><Save size={16}/> <span className="hidden md:inline">{isSavingDraft ? "Đang lưu..." : "Lưu Bản Nháp"}</span></button>
             <button onClick={() => handleUpdateCourse(true)} disabled={isSavingDraft || isUploading || isAutoSaving} className="flex items-center gap-2 bg-blue-600 text-white px-5 py-2 rounded-lg text-sm font-bold hover:bg-blue-700 shadow-md transition-all disabled:opacity-50"><Send size={16}/> <span className="hidden md:inline">Cập nhật (Xuất Bản)</span></button>
           </div>

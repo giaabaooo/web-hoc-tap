@@ -122,6 +122,22 @@ export const AdminDashboard = () => {
   };
 
   const handleLogout = () => { logout(); navigate('/'); toast.info("Đã đăng xuất"); };
+  useEffect(() => {
+    // Đẩy trạng thái hiện tại vào history stack thêm một lần
+    window.history.pushState(null, document.title, window.location.href);
+
+    const handlePopState = (event) => {
+      // Khi user bấm back, lại tiếp tục đẩy trạng thái hiện tại lên để ghi đè
+      window.history.pushState(null, document.title, window.location.href);
+    };
+
+    window.addEventListener('popstate', handlePopState);
+
+    // Cleanup listener khi component unmount (ví dụ khi admin bấm Đăng xuất)
+    return () => {
+      window.removeEventListener('popstate', handlePopState);
+    };
+  }, []);
 
   return (
     <div className="flex min-h-screen bg-slate-50 text-slate-800 antialiased font-sans">
