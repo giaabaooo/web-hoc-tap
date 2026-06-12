@@ -28,6 +28,7 @@ import { EditCourse } from './teacher/EditCourse';
 import { StudentManagement } from "./teacher/StudentManagement";
 import { TeacherSettings } from "./teacher/TeacherSettings"; // MỚI
 import { TeacherStats } from "./teacher/TeacherStats";       // MỚI
+import {MyPurchases} from "./pages/MyPurchases"; // MỚI
 
 // --- COMPONENT TỰ ĐỘNG CUỘN LÊN ĐẦU TRANG ---
 const ScrollToTop = () => {
@@ -73,9 +74,7 @@ function App() {
         {/* STUDENT ROUTES - Dùng StudentLayout (Sidebar trái) */}
         <Route path="/dashboard" element={<StudentLayout />}>
           <Route index element={<Dashboard />} />
-          <Route path="my-courses" element={<ComingSoon title="Khóa học của tôi" />} />
-          <Route path="subscription" element={<ComingSoon title="Gói đăng ký" />} />
-          <Route path="settings" element={<ComingSoon title="Cài đặt học viên" />} />
+          <Route path="my-purchases" element={<MyPurchases />} />
         </Route>
 
         {/* TEACHER ROUTES - Dùng TeacherLayout (Sidebar trái riêng) */}

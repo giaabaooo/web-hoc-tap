@@ -2,14 +2,39 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 import { 
   Sparkles, Globe, GraduationCap, Calculator, BookOpen, 
-  CheckCircle2, Users, BookMarked, PlayCircle, Award, Star
+  CheckCircle2, Users, BookMarked, PlayCircle, Award, Star,
+  Sprout, Rocket, Target, ChevronRight, MessageCircleHeart, Quote
 } from 'lucide-react';
+
+// Dữ liệu Feedback của phụ huynh
+const feedbacks = [
+  {
+    quote: "Con mình trước đây rất sợ học tiếng Anh, nhưng từ khi học ở Tự Học Vui thì ngày nào cũng chủ động mở bài ra học. Nội dung rất sinh động và dễ hiểu, phù hợp với con lắm.",
+    author: "Chị Lan Anh",
+    role: "Phụ huynh bạn Tuấn Minh (6 tuổi)"
+  },
+  {
+    quote: "Mình thích nhất là có thể theo dõi tiến độ học của con mỗi ngày. Con học đều hơn hẳn và tự tin hơn khi học trên lớp cùng cô và các bạn cũng như giao tiếp hàng ngày.",
+    author: "Anh Tuấn",
+    role: "Phụ huynh bạn Bảo Khang (8 tuổi)"
+  },
+  {
+    quote: "Chương trình học rõ ràng, có lộ trình và đánh giá cụ thể nên mình không còn lo con học lan man, không hiệu quả như trước nữa.",
+    author: "Chị Hương",
+    role: "Phụ huynh bạn Anna (7 tuổi)"
+  },
+  {
+    quote: "Con học mà như chơi, không cần ép. Đây là điều mình tìm kiếm bấy lâu. Con vẫn còn nhỏ nên mình thật sự ưu tiên con được vui vẻ mỗi khi làm một điều gì đó.",
+    author: "Chị Mai",
+    role: "Phụ huynh bạn Hoàng Vinh (5 tuổi)"
+  }
+];
 
 export const Home = () => {
   return (
-    <div className="min-h-screen bg-white font-sans text-gray-800">
+    <div className="min-h-screen bg-white font-sans text-gray-800 overflow-hidden">
       
-      {/* 1. HERO BANNER TO ĐÙNG NGAY ĐẦU (image_d4160e.jpg) */}
+      {/* 1. HERO BANNER TO ĐÙNG NGAY ĐẦU */}
       <section className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="w-full rounded-3xl overflow-hidden shadow-lg border border-gray-100">
           <img 
@@ -104,105 +129,138 @@ export const Home = () => {
         </div>
       </section>
 
-      {/* 3. HAI CHƯƠNG TRÌNH NỔI BẬT */}
+      {/* 3. HAI CHƯƠNG TRÌNH NỔI BẬT (Đã cập nhật thành Lộ trình Cambridge 3 cấp độ) */}
       <section className="bg-[#fffcf0] py-20 border-y border-yellow-100">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-12">
+          {/* Header Section */}
+          <div className="text-center mb-16">
             <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-yellow-100 border border-yellow-200 text-yellow-700 text-sm font-medium mb-4">
-              <Star className="w-4 h-4" /> Chương trình tiêu biểu
+              <Star className="w-4 h-4 fill-current" /> Lộ trình chuẩn Cambridge
             </div>
-            <h2 className="text-3xl md:text-4xl font-extrabold text-[#0a192f] mb-4 tracking-tight">
-              Hai chương trình nổi bật cho con bắt đầu
+            <h2 className="text-3xl md:text-5xl font-extrabold text-[#0a192f] mb-6 tracking-tight">
+              Từ Starters đến Flyers – <br className="hidden md:block" />
+              Hành trình giúp học sinh tự tin giao tiếp
             </h2>
-            <p className="text-gray-500 text-lg">
-              Chọn môn học phù hợp, bắt đầu bằng các nhiệm vụ nhỏ và theo dõi tiến bộ sau từng buổi.
+            <p className="text-gray-600 text-lg max-w-3xl mx-auto">
+              Giúp học sinh phát triển toàn diện 4 kỹ năng theo chuẩn quốc tế – bắt đầu từ nền tảng 
+              và tiến tới giao tiếp tự tin với giáo trình chuẩn Cambridge.
             </p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 lg:px-12">
-            {/* Gói Tiếng Anh */}
-            <div className="bg-[#eaf1e8] rounded-[2rem] p-8 border border-[#d3e3cd] flex flex-col h-full relative overflow-hidden">
-               {/* Trang trí nền */}
-              <div className="absolute top-10 right-10 w-32 h-32 bg-white/40 rounded-full blur-2xl"></div>
-
+          {/* 3 Columns Grid */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            
+            {/* Cấp độ 1: Starters */}
+            <div className="group bg-[#f0f9f1] rounded-[2.5rem] p-8 border border-[#d3e3cd] flex flex-col relative overflow-hidden transition-all hover:shadow-xl hover:-translate-y-2">
+              <div className="absolute -top-10 -right-10 w-32 h-32 bg-green-200/30 rounded-full blur-3xl group-hover:bg-green-300/40 transition-colors"></div>
+              
               <div className="flex items-center gap-4 mb-6 relative z-10">
-                <div className="w-14 h-14 bg-blue-500 text-white rounded-2xl flex items-center justify-center shadow-md">
-                  <BookOpen className="w-7 h-7" />
+                <div className="w-16 h-16 bg-green-500 text-white rounded-2xl flex items-center justify-center shadow-lg shadow-green-200">
+                  <Sprout className="w-8 h-8" />
                 </div>
                 <div>
-                  <h3 className="text-2xl font-bold text-[#0a192f]">Lớp tiếng Anh cho bé từ 2 tuổi</h3>
+                  <span className="text-green-600 font-bold text-sm uppercase tracking-wider">Cấp độ 1</span>
+                  <h3 className="text-2xl font-bold text-[#0a192f]">Starters (Pre A1)</h3>
                 </div>
               </div>
-              <p className="text-gray-600 mb-8 relative z-10">
-                Bài học nhỏ, nhiều âm thanh và hình ảnh để con làm quen tiếng Anh tự nhiên.
-              </p>
+
+              <p className="text-gray-600 mb-6 font-medium italic">"Làm quen tiếng Anh tự nhiên (4–6 tuổi)"</p>
               
-              <ul className="space-y-4 mb-10 flex-grow relative z-10">
-                <li className="flex items-center gap-3 bg-white/70 px-4 py-3 rounded-xl">
-                  <CheckCircle2 className="text-blue-500 w-5 h-5 flex-shrink-0" />
-                  <span className="font-medium text-gray-700">Video và audio tương tác</span>
-                </li>
-                <li className="flex items-center gap-3 bg-white/70 px-4 py-3 rounded-xl">
-                  <CheckCircle2 className="text-blue-500 w-5 h-5 flex-shrink-0" />
-                  <span className="font-medium text-gray-700">Luyện nghe nói mỗi ngày</span>
-                </li>
-                <li className="flex items-center gap-3 bg-white/70 px-4 py-3 rounded-xl">
-                  <CheckCircle2 className="text-blue-500 w-5 h-5 flex-shrink-0" />
-                  <span className="font-medium text-gray-700">Bài tập ngắn, dễ nhớ</span>
-                </li>
+              <ul className="space-y-3 mb-8 flex-grow relative z-10">
+                {[
+                  "Làm quen từ vựng cơ bản",
+                  "Nghe – hiểu các câu đơn giản",
+                  "Nhận diện chữ cái & từ quen thuộc",
+                  "Phát triển phản xạ tự nhiên"
+                ].map((item, idx) => (
+                  <li key={idx} className="flex items-start gap-3 bg-white/60 px-4 py-3 rounded-2xl border border-white/50">
+                    <CheckCircle2 className="text-green-500 w-5 h-5 mt-0.5 flex-shrink-0" />
+                    <span className="text-gray-700 font-medium text-sm md:text-base">{item}</span>
+                  </li>
+                ))}
               </ul>
 
-              <div className="bg-blue-500 rounded-2xl p-6 flex items-center justify-between mt-auto relative z-10">
-                <div>
-                  <p className="text-blue-100 text-sm font-medium mb-1">BẮT ĐẦU TỪ</p>
-                  <p className="text-white text-3xl font-extrabold">10k/tháng</p>
+              <div className="mt-auto">
+                <div className="bg-green-600 rounded-2xl p-4 mb-4 text-center relative z-10">
+                  <p className="text-green-100 text-xs font-bold mb-1">MỤC TIÊU</p>
+                  <p className="text-white font-semibold text-sm">Hiểu & phản xạ tình huống hàng ngày</p>
                 </div>
-                <Link to="/pricing" className="bg-white text-blue-600 font-bold px-6 py-3 rounded-full hover:bg-gray-50 transition-colors shadow-sm">
-                  Khám phá ngay
-                </Link>
               </div>
             </div>
 
-            {/* Gói Tiếng Trung */}
-            <div className="bg-[#fff1e0] rounded-[2rem] p-8 border border-[#fce0c5] flex flex-col h-full relative overflow-hidden">
-               {/* Trang trí nền */}
-               <div className="absolute top-10 right-10 w-32 h-32 bg-white/50 rounded-full blur-2xl"></div>
-
+            {/* Cấp độ 2: Movers */}
+            <div className="group bg-[#eff6ff] rounded-[2.5rem] p-8 border border-[#dbeafe] flex flex-col relative overflow-hidden transition-all hover:shadow-xl hover:-translate-y-2">
+              <div className="absolute -top-10 -right-10 w-32 h-32 bg-blue-200/30 rounded-full blur-3xl group-hover:bg-blue-300/40 transition-colors"></div>
+              
               <div className="flex items-center gap-4 mb-6 relative z-10">
-                <div className="w-14 h-14 bg-orange-500 text-white rounded-2xl flex items-center justify-center shadow-md">
-                  <GraduationCap className="w-7 h-7" />
+                <div className="w-16 h-16 bg-blue-500 text-white rounded-2xl flex items-center justify-center shadow-lg shadow-blue-200">
+                  <Rocket className="w-8 h-8" />
                 </div>
                 <div>
-                  <h3 className="text-2xl font-bold text-[#0a192f]">Lớp tiếng Trung cho bé từ 5 tuổi</h3>
+                  <span className="text-blue-600 font-bold text-sm uppercase tracking-wider">Cấp độ 2</span>
+                  <h3 className="text-2xl font-bold text-[#0a192f]">Movers (A1)</h3>
                 </div>
               </div>
-              <p className="text-gray-600 mb-8 relative z-10">
-                Lộ trình theo từng ngày học với flashcard, đọc, xem video và bài hát.
-              </p>
+
+              <p className="text-gray-600 mb-6 font-medium italic">"Phát triển ngôn ngữ (6–8 tuổi)"</p>
               
-              <ul className="space-y-4 mb-10 flex-grow relative z-10">
-                <li className="flex items-center gap-3 bg-white/70 px-4 py-3 rounded-xl">
-                  <CheckCircle2 className="text-orange-500 w-5 h-5 flex-shrink-0" />
-                  <span className="font-medium text-gray-700">Từ vựng theo chủ đề</span>
-                </li>
-                <li className="flex items-center gap-3 bg-white/70 px-4 py-3 rounded-xl">
-                  <CheckCircle2 className="text-orange-500 w-5 h-5 flex-shrink-0" />
-                  <span className="font-medium text-gray-700">Rèn phát âm, đọc và viết</span>
-                </li>
-                <li className="flex items-center gap-3 bg-white/70 px-4 py-3 rounded-xl">
-                  <CheckCircle2 className="text-orange-500 w-5 h-5 flex-shrink-0" />
-                  <span className="font-medium text-gray-700">Nắm mẫu câu cơ bản</span>
-                </li>
+              <ul className="space-y-3 mb-8 flex-grow relative z-10">
+                {[
+                  "Học từ vựng chủ đề nâng cao",
+                  "Nói câu đơn giản & đặt câu hỏi",
+                  "Luyện nghe hội thoại ngắn",
+                  "Bắt đầu đọc – viết câu cơ bản"
+                ].map((item, idx) => (
+                  <li key={idx} className="flex items-start gap-3 bg-white/60 px-4 py-3 rounded-2xl border border-white/50">
+                    <CheckCircle2 className="text-blue-500 w-5 h-5 mt-0.5 flex-shrink-0" />
+                    <span className="text-gray-700 font-medium text-sm md:text-base">{item}</span>
+                  </li>
+                ))}
               </ul>
 
-              <div className="bg-orange-500 rounded-2xl p-6 flex items-center justify-between mt-auto relative z-10">
-                <div>
-                  <p className="text-orange-100 text-sm font-medium mb-1">BẮT ĐẦU TỪ</p>
-                  <p className="text-white text-3xl font-extrabold">10k/tháng</p>
+              <div className="mt-auto">
+                <div className="bg-blue-600 rounded-2xl p-4 mb-4 text-center relative z-10">
+                  <p className="text-blue-100 text-xs font-bold mb-1">MỤC TIÊU</p>
+                  <p className="text-white font-semibold text-sm">Giao tiếp đơn giản và tự tin hơn</p>
                 </div>
-                <Link to="/pricing" className="bg-white text-orange-600 font-bold px-6 py-3 rounded-full hover:bg-gray-50 transition-colors shadow-sm">
-                  Khám phá ngay
-                </Link>
+              </div>
+            </div>
+
+            {/* Cấp độ 3: Flyers */}
+            <div className="group bg-[#fff7ed] rounded-[2.5rem] p-8 border border-[#ffedd5] flex flex-col relative overflow-hidden transition-all hover:shadow-xl hover:-translate-y-2">
+              <div className="absolute -top-10 -right-10 w-32 h-32 bg-orange-200/30 rounded-full blur-3xl group-hover:bg-orange-300/40 transition-colors"></div>
+              
+              <div className="flex items-center gap-4 mb-6 relative z-10">
+                <div className="w-16 h-16 bg-orange-500 text-white rounded-2xl flex items-center justify-center shadow-lg shadow-orange-200">
+                  <Target className="w-8 h-8" />
+                </div>
+                <div>
+                  <span className="text-orange-600 font-bold text-sm uppercase tracking-wider">Cấp độ 3</span>
+                  <h3 className="text-2xl font-bold text-[#0a192f]">Flyers (A2)</h3>
+                </div>
+              </div>
+
+              <p className="text-gray-600 mb-6 font-medium italic">"Giao tiếp tự tin (8–10 tuổi)"</p>
+              
+              <ul className="space-y-3 mb-8 flex-grow relative z-10">
+                {[
+                  "Hiểu đoạn hội thoại dài",
+                  "Diễn đạt ý tưởng rõ ràng",
+                  "Đọc hiểu đoạn văn ngắn",
+                  "Viết câu và đoạn văn linh hoạt"
+                ].map((item, idx) => (
+                  <li key={idx} className="flex items-start gap-3 bg-white/60 px-4 py-3 rounded-2xl border border-white/50">
+                    <CheckCircle2 className="text-orange-500 w-5 h-5 mt-0.5 flex-shrink-0" />
+                    <span className="text-gray-700 font-medium text-sm md:text-base">{item}</span>
+                  </li>
+                ))}
+              </ul>
+
+              <div className="mt-auto">
+                <div className="bg-orange-600 rounded-2xl p-4 mb-4 text-center relative z-10">
+                  <p className="text-orange-100 text-xs font-bold mb-1">MỤC TIÊU</p>
+                  <p className="text-white font-semibold text-sm">Sẵn sàng giao tiếp mức độ cao hơn</p>
+                </div>
               </div>
             </div>
           </div>
@@ -279,66 +337,83 @@ export const Home = () => {
         </div>
       </section>
 
-      {/* 5. ĐÁNH GIÁ (Học vui hơn, theo dõi nhẹ hơn) */}
-      <section className="bg-blue-50/30 py-20 border-t border-blue-50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-16">
-            <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-white border border-blue-100 text-blue-600 text-sm font-medium mb-4 shadow-sm">
-              <Star className="w-4 h-4 fill-current" /> Phụ huynh chia sẻ
+      {/* 5. ĐÁNH GIÁ CỦA PHỤ HUYNH (Đã cập nhật giao diện trượt ngang Marquee) */}
+      <section className="py-20 bg-blue-50/30 border-t border-blue-50 relative">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mb-12">
+          <div className="text-center">
+            <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-white border border-blue-100 text-blue-600 text-sm font-bold mb-4 shadow-sm">
+              <MessageCircleHeart className="w-4 h-4" /> Được chọn lựa & yêu thích
             </div>
-            <h2 className="text-3xl md:text-4xl font-extrabold text-[#0a192f] tracking-tight">
-              Học vui hơn, theo dõi nhẹ hơn
+            <h2 className="text-3xl md:text-4xl font-extrabold text-[#0a192f] mb-4">
+              Phụ huynh nói gì về <span className="text-blue-600">Tự Học Vui?</span>
             </h2>
+            <p className="text-gray-500 text-lg">
+              Hàng ngàn gia đình đã tin tưởng và đồng hành cùng chúng tôi mỗi ngày.
+            </p>
           </div>
+        </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {/* Review 1 */}
-            <div className="bg-white p-8 rounded-[2rem] shadow-sm border border-gray-100">
-              <div className="flex items-center gap-4 mb-6">
-                <div className="w-12 h-12 rounded-full bg-blue-100 text-blue-600 font-bold flex items-center justify-center text-lg">
-                  M
+        {/* CSS KEYFRAMES: Chạy từ trái sang phải */}
+        <style>
+          {`
+            @keyframes marquee-ltr {
+              0% { transform: translateX(-50%); }
+              100% { transform: translateX(0%); }
+            }
+            .animate-marquee-ltr {
+              display: flex;
+              width: max-content;
+              animation: marquee-ltr 40s linear infinite;
+            }
+            .animate-marquee-ltr:hover {
+              animation-play-state: paused;
+            }
+            /* Ẩn thanh cuộn */
+            .hide-scrollbar::-webkit-scrollbar {
+              display: none;
+            }
+            .hide-scrollbar {
+              -ms-overflow-style: none;
+              scrollbar-width: none;
+            }
+          `}
+        </style>
+
+        {/* Khung chứa Marquee */}
+        <div className="relative w-full hide-scrollbar">
+          {/* Lớp gradient che mờ 2 bên tạo hiệu ứng smooth */}
+          <div className="absolute top-0 left-0 w-16 md:w-32 h-full bg-gradient-to-r from-[#f5f8fc] to-transparent z-10 pointer-events-none"></div>
+          <div className="absolute top-0 right-0 w-16 md:w-32 h-full bg-gradient-to-l from-[#f5f8fc] to-transparent z-10 pointer-events-none"></div>
+
+          {/* Khối chạy (gấp đôi mảng feedbacks để vòng lặp liên tục) */}
+          <div className="animate-marquee-ltr gap-6 px-4 cursor-pointer">
+            {[...feedbacks, ...feedbacks].map((fb, index) => (
+              <div 
+                key={index} 
+                className="w-[350px] md:w-[450px] bg-white border border-gray-100 rounded-[2rem] p-8 flex-shrink-0 hover:shadow-lg transition-shadow duration-300"
+              >
+                <div className="flex gap-1 mb-4 text-yellow-400">
+                  {[1, 2, 3, 4, 5].map(star => (
+                    <Star key={star} className="w-5 h-5 fill-current" />
+                  ))}
                 </div>
-                <div>
-                  <h4 className="font-bold text-gray-900 text-[15px]">Phụ huynh bé Minh</h4>
-                  <p className="text-gray-500 text-sm">Tiếng Anh mầm non</p>
+                <div className="relative mb-6">
+                  <Quote className="absolute -top-3 -left-3 w-8 h-8 text-blue-50 rotate-180" />
+                  <p className="text-gray-700 leading-relaxed relative z-10 text-[15px] md:text-base font-medium italic">
+                    "{fb.quote}"
+                  </p>
+                </div>
+                <div className="flex items-center gap-4 mt-auto border-t border-gray-50 pt-4">
+                  <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center text-blue-600 font-bold text-lg">
+                    {fb.author.charAt(4) || fb.author.charAt(0)}
+                  </div>
+                  <div>
+                    <h4 className="font-bold text-[#0a192f]">{fb.author}</h4>
+                    <p className="text-sm text-gray-500">{fb.role}</p>
+                  </div>
                 </div>
               </div>
-              <p className="text-gray-600 leading-relaxed italic">
-                "Bài học ngắn nên con không bị mệt. Mỗi ngày chỉ cần mở lộ trình là biết hôm nay học gì."
-              </p>
-            </div>
-
-            {/* Review 2 */}
-            <div className="bg-white p-8 rounded-[2rem] shadow-sm border border-gray-100">
-              <div className="flex items-center gap-4 mb-6">
-                <div className="w-12 h-12 rounded-full bg-orange-100 text-orange-600 font-bold flex items-center justify-center text-lg">
-                  N
-                </div>
-                <div>
-                  <h4 className="font-bold text-gray-900 text-[15px]">Phụ huynh bé Nam</h4>
-                  <p className="text-gray-500 text-sm">Tiếng Anh tiểu học</p>
-                </div>
-              </div>
-              <p className="text-gray-600 leading-relaxed italic">
-                "Con thích phần nghe và bài tập tương tác. Gia đình theo dõi tiến độ cũng dễ hơn trước."
-              </p>
-            </div>
-
-            {/* Review 3 */}
-            <div className="bg-white p-8 rounded-[2rem] shadow-sm border border-gray-100">
-              <div className="flex items-center gap-4 mb-6">
-                <div className="w-12 h-12 rounded-full bg-pink-100 text-pink-600 font-bold flex items-center justify-center text-lg">
-                  M
-                </div>
-                <div>
-                  <h4 className="font-bold text-gray-900 text-[15px]">Phụ huynh bé Mai</h4>
-                  <p className="text-gray-500 text-sm">Ôn tập và tài liệu</p>
-                </div>
-              </div>
-              <p className="text-gray-600 leading-relaxed italic">
-                "Tài liệu được gom gọn, con ôn lại ngay trên web và làm bài kiểm tra mà không phải tìm nhiều nơi."
-              </p>
-            </div>
+            ))}
           </div>
         </div>
       </section>

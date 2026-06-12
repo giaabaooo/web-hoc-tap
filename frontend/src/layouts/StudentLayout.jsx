@@ -1,6 +1,5 @@
 import React from 'react';
 import { Outlet } from 'react-router-dom';
-// Đảm bảo đường dẫn import Navbar này đúng với cấu trúc thư mục của bạn
 import { Navbar } from '../components/ui/Navbar'; 
 
 export const StudentLayout = () => {
@@ -9,7 +8,7 @@ export const StudentLayout = () => {
       {/* Gọi Navbar dùng chung xuống đây */}
       <Navbar />
       
-      {/* Main Content Area chiếm toàn bộ chiều rộng (Đã xóa Sidebar) */}
+      {/* Main Content Area chiếm toàn bộ chiều rộng (Đã xóa Sidebar và Sub-menu) */}
       <main className="flex-1 w-full">
         <Outlet />
       </main>

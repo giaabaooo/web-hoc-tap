@@ -1,5 +1,6 @@
+// middlewares/auth.middleware.js
 import jwt from 'jsonwebtoken';
-import { User } from '../models/User.js'; // Điều chỉnh lại đường dẫn model cho chuẩn
+import { User } from '../models/User.js'; 
 
 // Middleware kiểm tra user đã đăng nhập chưa
 export const protect = async (req, res, next) => {
@@ -11,7 +12,8 @@ export const protect = async (req, res, next) => {
       token = req.headers.authorization.split(' ')[1];
     }
 
-    if (!token) {
+    // FIX QUAN TRỌNG: Chặn ngay nếu token rỗng, hoặc mang chuỗi "null", "undefined" từ localStorage gửi lên
+    if (!token || token === 'null' || token === 'undefined') {
       return res.status(401).json({ message: 'Vui lòng đăng nhập để truy cập!' });
     }
 
@@ -33,12 +35,12 @@ export const protect = async (req, res, next) => {
     req.user = user;
     next();
   } catch (error) {
-    console.error('Lỗi xác thực Token:', error);
+    // Trả về 401 êm ái, không in log đỏ ra Terminal để tránh làm rối hệ thống
     return res.status(401).json({ message: 'Token không hợp lệ hoặc đã hết hạn!' });
   }
 };
 
-// Middleware phân quyền Role (vd: authorize('admin', 'teacher'))
+// Middleware phân quyền Role
 export const authorize = (...roles) => {
   return (req, res, next) => {
     if (!roles.includes(req.user.role)) {

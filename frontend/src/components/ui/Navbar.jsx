@@ -61,7 +61,7 @@ export const Navbar = () => {
                     />
                     <div>
                         <h1 className="text-xl font-bold text-text-primary leading-none">Tự Học Vui</h1>
-                        <p className="text-xs text-orange-500 font-medium">Học vui mỗi ngày</p>
+                        <p className="text-xs text-orange-500 font-medium">Học là vui, vui là học</p>
                     </div>
                 </Link>
 

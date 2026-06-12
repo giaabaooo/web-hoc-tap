@@ -51,8 +51,7 @@ const calculateExerciseScore = (ex, studentAnsObj) => {
         const maxPts = sq.points || 10;
         
         switch(ex.type) {
-          case 'speaking':
-            totalScore += ans.score || 0; break;
+          case 'speaking': totalScore += ans.score || 0; break;
           case 'matching': {
             if (typeof ans === 'object') {
               const rightOriginals = sq.options?.map(opt => opt.split('|')[1]) || [];
@@ -62,13 +61,10 @@ const calculateExerciseScore = (ex, studentAnsObj) => {
             }
             break;
           }
-          case 'essay':
-            totalScore += maxPts; break; 
+          case 'essay': totalScore += maxPts; break; 
           default: { 
             const ansStr = typeof ans === 'object' ? (ans.choice || '') : ans;
-            if (ansStr.toString().trim().toLowerCase() === (sq.correctAnswer || '').toString().trim().toLowerCase()) {
-               totalScore += maxPts;
-            }
+            if (ansStr.toString().trim().toLowerCase() === (sq.correctAnswer || '').toString().trim().toLowerCase()) totalScore += maxPts;
           }
         }
      });
@@ -149,9 +145,7 @@ const InteractiveMatching = ({ sq, value = {}, onChange, isSubmitted }) => {
             )
           })}
         </div>
-        {Object.keys(value).length === leftItems.length && !isSubmitted && (
-          <div className="text-center text-green-600 font-bold p-4 bg-green-50 rounded-xl border border-green-200 shadow-sm mt-4">Đã ghép xong tất cả! Nộp bài để xem kết quả.</div>
-        )}
+        {Object.keys(value).length === leftItems.length && !isSubmitted && <div className="text-center text-green-600 font-bold p-4 bg-green-50 rounded-xl border border-green-200 shadow-sm mt-4">Đã ghép xong tất cả! Nộp bài để xem kết quả.</div>}
       </div>
     </div>
   )
@@ -302,6 +296,7 @@ export const CourseDetail = () => {
   
   const [courseData, setCourseData] = useState(null);
   const [enrollment, setEnrollment] = useState(null);
+  const [isOwned, setIsOwned] = useState(false); // TRẠNG THÁI SỞ HỮU KHÓA HỌC
   const [isLoading, setIsLoading] = useState(true);
 
   const [expandedChapters, setExpandedChapters] = useState([]); 
@@ -314,9 +309,8 @@ export const CourseDetail = () => {
   const [flippedCards, setFlippedCards] = useState({}); 
   const [isRedoing, setIsRedoing] = useState(false); 
 
-  useEffect(() => { window.scrollTo(0, 0); }, []);
+  useEffect(() => { window.scrollTo(0, 0); }, [id]);
 
-  // CHUẨN HÓA DỮ LIỆU CŨ THÀNH MỚI HOÀN HẢO
   const normalizeCourseData = (data) => {
     if (!data) return data;
     const newData = JSON.parse(JSON.stringify(data));
@@ -331,15 +325,9 @@ export const CourseDetail = () => {
               const oldQ = ex.question || '';
               
               if (ex.type === 'reading') {
-                ex.questions = [{ 
-                  question: ex.passage || '', contentUrl: ex.contentUrl || '', audioUrl: ex.audioUrl || '', 
-                  subQuestions: oldSubQ.length > 0 ? oldSubQ : [{ question: oldQ, options: oldOpts, correctAnswer: oldCorrect, points: ex.points || 10 }] 
-                }];
+                ex.questions = [{ question: ex.passage || '', contentUrl: ex.contentUrl || '', audioUrl: ex.audioUrl || '', subQuestions: oldSubQ.length > 0 ? oldSubQ : [{ question: oldQ, options: oldOpts, correctAnswer: oldCorrect, points: ex.points || 10 }] }];
               } else {
-                ex.questions = [{
-                  question: oldQ, contentUrl: ex.contentUrl || '', audioUrl: ex.audioUrl || '',
-                  subQuestions: oldSubQ.length > 0 ? oldSubQ : [{ question: '', options: oldOpts, correctAnswer: oldCorrect, points: ex.points || 10 }]
-                }];
+                ex.questions = [{ question: oldQ, contentUrl: ex.contentUrl || '', audioUrl: ex.audioUrl || '', subQuestions: oldSubQ.length > 0 ? oldSubQ : [{ question: '', options: oldOpts, correctAnswer: oldCorrect, points: ex.points || 10 }] }];
               }
             }
           });
@@ -355,6 +343,7 @@ export const CourseDetail = () => {
         setIsLoading(true);
         if (id === 'mock-1') {
            setCourseData(normalizeCourseData(MOCK_COURSE));
+           setIsOwned(true); // Mock luôn mở
            const firstChapter = MOCK_COURSE.chapters[0];
            const firstSection = firstChapter?.sections[0];
            const firstLesson = firstSection?.lessons[0];
@@ -367,6 +356,11 @@ export const CourseDetail = () => {
           const normalizedData = normalizeCourseData(response.data.course);
           setCourseData(normalizedData);
 
+          // LOGIC KHÓA BÀI HỌC: Mặc định nếu giá = 0 hoặc Giáo viên/Admin thì cho xem
+          if (normalizedData.price === 0 || user?.role === 'teacher' || user?.role === 'admin') {
+            setIsOwned(true);
+          }
+
           if (normalizedData?.chapters?.length > 0) {
             setExpandedChapters([normalizedData.chapters[0]._id]);
             if (normalizedData.chapters[0].sections?.length > 0) {
@@ -376,19 +370,33 @@ export const CourseDetail = () => {
             }
           }
         }
-      } catch (error) { toast.error('Lỗi tải dữ liệu!'); } 
+      } catch (error) { toast.error('Lỗi tải dữ liệu!'); navigate('/lessons'); } 
       finally { setIsLoading(false); }
     };
     if (id) fetchCourseDetail();
-  }, [id]);
+  }, [id, user, navigate]);
 
   useEffect(() => {
     const checkEnroll = async () => {
       if (token && id !== 'mock-1' && user?.role !== 'teacher' && user?.role !== 'admin') {
         try {
           const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
-          const res = await axios.get(`${API_URL}/api/courses/${id}/check-enrollment`, { headers: { Authorization: `Bearer ${token}` }});
-          setEnrollment(res.data);
+          // 1. Kiểm tra khóa đã mua và hạn sử dụng (API trả về mảng)
+          const resEnrolls = await axios.get(`${API_URL}/api/courses/student/enrollments`, { headers: { Authorization: `Bearer ${token}` }});
+          const enrollmentsList = resEnrolls.data.enrollments || resEnrolls.data || [];
+          
+          const validOwnership = enrollmentsList.find(e => {
+              const cId = e.course?._id || e.course;
+              return cId === id && !e.isExpired;
+          });
+
+          if (validOwnership) {
+             setIsOwned(true);
+             
+             // 2. Kéo tiến độ cũ của riêng khóa này về
+             const progressRes = await axios.get(`${API_URL}/api/courses/${id}/check-enrollment`, { headers: { Authorization: `Bearer ${token}` }});
+             setEnrollment(progressRes.data);
+          }
         } catch(e) { console.log(e); }
       }
     };
@@ -404,11 +412,18 @@ export const CourseDetail = () => {
 
   const toggleArray = (arr, setArr, itemId) => setArr(prev => prev.includes(itemId) ? prev.filter(item => item !== itemId) : [...prev, itemId]);
 
+  // HÀM CHUYỂN SANG TRANG THANH TOÁN
+  const handleBuyNow = () => {
+    if (!token) {
+      toast.info("Vui lòng đăng nhập để mua khóa học");
+      return navigate('/auth');
+    }
+    navigate('/pricing', { state: { autoAddCourseId: id } });
+  };
+
   const handleEnroll = async () => {
     if (id === 'mock-1') { setEnrollment({ progress: [] }); return toast.success("Đã vào chế độ học Demo!"); }
     if (!user) return toast.info("Vui lòng đăng nhập!");
-    if (user.role === 'teacher' || user.role === 'admin') return toast.error("Giáo viên không thể tham gia khóa học!");
-
     try {
       const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
       const res = await axios.post(`${API_URL}/api/courses/${id}/enroll`, {}, { headers: { Authorization: `Bearer ${token}` }});
@@ -441,10 +456,7 @@ export const CourseDetail = () => {
   const formatTime = (lesson) => { let totalMins = 5 + (lesson.exercises?.length || 0) * 2; if (totalMins >= 60) return `${Math.floor(totalMins / 60)}h${totalMins % 60 > 0 ? totalMins % 60 + 'p' : ''}`; return `${totalMins}p`; };
 
   const loadPreviousAnswers = (lesson) => {
-    setActiveLesson(lesson); 
-    setFlippedCards({});
-    setIsRedoing(false); 
-    
+    setActiveLesson(lesson); setFlippedCards({}); setIsRedoing(false); 
     const progress = enrollment?.progress?.find(p => p.lessonId === lesson._id);
     if (progress && progress.answers) {
        let normAnswers = {};
@@ -453,19 +465,14 @@ export const CourseDetail = () => {
            if (typeof rawAns === 'object' && rawAns !== null && !Array.isArray(rawAns) && Object.keys(rawAns).some(k => k.includes('-'))) {
                normAnswers[exId] = rawAns; 
            } else {
-               // Chuyển đổi format đáp án cũ map vào format 2 tầng (0-0, 0-1)
                normAnswers[exId] = {};
                if (typeof rawAns === 'object' && rawAns !== null && !Array.isArray(rawAns)) {
                    Object.keys(rawAns).forEach(k => { normAnswers[exId][`0-${k}`] = rawAns[k]; });
-               } else {
-                   normAnswers[exId]['0-0'] = rawAns;
-               }
+               } else { normAnswers[exId]['0-0'] = rawAns; }
            }
        });
        setAnswers(normAnswers);
-    } else { 
-       setAnswers({}); 
-    }
+    } else { setAnswers({}); }
     
     if (!expandedLessons.includes(lesson._id)) setExpandedLessons(prev => [...prev, lesson._id]);
     window.scrollTo({top: 0, behavior: 'smooth'});
@@ -473,40 +480,29 @@ export const CourseDetail = () => {
 
   const scrollToExercise = (index) => {
     const el = document.getElementById(`ex-${index}`);
-    if (el) {
-      const yOffset = -90; 
-      const y = el.getBoundingClientRect().top + window.scrollY + yOffset;
-      window.scrollTo({ top: y, behavior: 'smooth' });
-    }
+    if (el) { const yOffset = -90; const y = el.getBoundingClientRect().top + window.scrollY + yOffset; window.scrollTo({ top: y, behavior: 'smooth' }); }
   };
 
   const handleRedoLesson = () => {
     if (!window.confirm("Bắt đầu làm lại bài? Mọi đáp án sẽ được mở khóa.")) return;
-    setIsRedoing(true);
-    setAnswers({}); 
+    setIsRedoing(true); setAnswers({}); 
   };
 
-  const handleAnswerChange = (exId, ansKey, value) => {
-    setAnswers(prev => ({ ...prev, [exId]: { ...(prev[exId] || {}), [ansKey]: value } }));
-  };
+  const handleAnswerChange = (exId, ansKey, value) => { setAnswers(prev => ({ ...prev, [exId]: { ...(prev[exId] || {}), [ansKey]: value } })); };
 
   const handleSubmitLesson = async () => {
     if (!activeLesson) return;
     if (id === 'mock-1') {
        const earnedPoints = activeLesson.exercises?.reduce((acc, ex) => acc + calculateExerciseScore(ex, answers[ex._id]), 0); 
        setEnrollment(prev => ({ ...prev, progress: [...(prev?.progress || []), { lessonId: activeLesson._id, answers, score: earnedPoints }] }));
-       setIsRedoing(false);
-       return toast.success("Đã nộp bài!");
+       setIsRedoing(false); return toast.success("Đã nộp bài!");
     }
     setIsSubmitting(true);
     try {
       const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
       const res = await axios.post(`${API_URL}/api/courses/${id}/lessons/${activeLesson._id}/submit`, { answers }, { headers: { Authorization: `Bearer ${token}` }});
-      setEnrollment(res.data.enrollment);
-      setIsRedoing(false);
-      toast.success("Nộp bài thành công!");
-    } catch (error) { toast.error("Lỗi nộp bài!"); } 
-    finally { setIsSubmitting(false); }
+      setEnrollment(res.data.enrollment); setIsRedoing(false); toast.success("Nộp bài thành công!");
+    } catch (error) { toast.error("Lỗi nộp bài!"); } finally { setIsSubmitting(false); }
   };
 
   const renderMedia = () => {
@@ -544,7 +540,6 @@ export const CourseDetail = () => {
           <div className="space-y-8">
              {ex.questions?.map((qGroup, qIdx) => (
                 <div key={qIdx} className="border border-gray-100 rounded-xl p-5 shadow-sm">
-                   
                    {(qGroup.question || qGroup.contentUrl || qGroup.audioUrl) && (
                       <div className="mb-5 bg-blue-50/40 p-4 rounded-lg border border-blue-100">
                          {qGroup.question && <p className="font-bold text-gray-800 mb-3 text-lg leading-relaxed">{qGroup.question}</p>}
@@ -665,6 +660,7 @@ export const CourseDetail = () => {
       <div className="bg-white border-b mb-6 py-5 shadow-sm">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <button onClick={() => navigate('/lessons')} className="text-gray-500 text-sm hover:text-blue-600 mb-3 flex items-center gap-1 font-bold transition-colors"><ArrowLeft size={16} /> Quay lại</button>
+          
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
             <div>
               <h1 className="text-2xl font-extrabold text-gray-800 mb-2">{courseData?.title}</h1>
@@ -673,216 +669,240 @@ export const CourseDetail = () => {
                 <span className="bg-blue-50 text-blue-600 px-2 py-0.5 rounded border border-blue-100">{courseData?.chapters?.length || 0} Ngày học</span>
               </div>
             </div>
-            {!enrollment ? (
+
+            {/* BUTTON ĐIỀU HƯỚNG THEO TRẠNG THÁI */}
+            {!isOwned ? (
+              <button onClick={handleBuyNow} className="px-6 py-2.5 bg-green-600 text-white rounded-lg font-bold shadow-sm hover:bg-green-700 transition-colors text-sm">Mua ngay</button>
+            ) : !enrollment ? (
               user?.role === 'teacher' || user?.role === 'admin' ? (
-                <div className="px-6 py-2.5 bg-gray-100 text-gray-500 border border-gray-200 rounded-lg font-bold text-sm">Chế độ xem trước (Giáo viên)</div>
+                <div className="px-6 py-2.5 bg-gray-100 text-gray-500 border border-gray-200 rounded-lg font-bold text-sm">Chế độ xem trước</div>
               ) : (
                 <button onClick={handleEnroll} className="px-6 py-2.5 bg-blue-600 text-white rounded-lg font-bold shadow-sm hover:bg-blue-700 transition-colors text-sm">Bắt đầu học ngay</button>
               )
             ) : (
-              <button onClick={handleContinue} className="px-6 py-2.5 bg-green-600 text-white rounded-lg font-bold shadow-sm hover:bg-green-700 transition-colors text-sm">Tiếp tục học</button>
+              <button onClick={handleContinue} className="px-6 py-2.5 bg-blue-600 text-white rounded-lg font-bold shadow-sm hover:bg-blue-700 transition-colors text-sm">Tiếp tục học</button>
             )}
           </div>
         </div>
       </div>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex flex-col lg:flex-row gap-6">
-          <aside className="w-full lg:w-[380px] flex-shrink-0 bg-white rounded-xl shadow-sm border border-gray-200 h-fit sticky top-20 max-h-[80vh] flex flex-col">
-            <div className="p-4 border-b border-gray-100 bg-gray-50 rounded-t-xl">
-              <h3 className="font-extrabold text-sm text-gray-800 uppercase tracking-wide">Lộ trình học</h3>
+        {/* LOGIC HIỂN THỊ: NẾU CHƯA SỞ HỮU -> HIỆN KHÓA. NẾU SỞ HỮU -> HIỆN UI TƯƠNG TÁC */}
+        {!isOwned ? (
+          <div className="flex flex-col lg:flex-row gap-6 items-stretch w-full">
+            <div className="w-full lg:w-1/3 bg-white border border-slate-100 rounded-2xl p-6 shadow-sm flex flex-col">
+              <div className="flex justify-between items-center mb-12">
+                <h3 className="font-bold text-slate-800">Ngày học</h3>
+                <span className="text-sm text-slate-500">{courseData?.chapters?.length || 0} ngày</span>
+              </div>
+              <div className="flex-1 flex flex-col items-center justify-center text-slate-400 pb-10">
+                <BookOpen size={48} className="mb-4 opacity-50" strokeWidth={1} />
+                <p className="font-medium text-sm">Chưa có ngày học</p>
+              </div>
             </div>
-            <div className="overflow-y-auto p-3 space-y-2 custom-scrollbar">
-              {!enrollment && user?.role !== 'teacher' && user?.role !== 'admin' && id !== 'mock-1' ? (
-                <div className="p-6 text-center text-gray-400 text-sm font-medium">Bấm Bắt đầu học để xem chi tiết.</div>
-              ) : (
-                courseData?.chapters?.map((chapter, index) => (
-                  <div key={chapter._id} className="border border-gray-200 rounded-lg overflow-hidden bg-white mb-2 shadow-sm">
-                    <button onClick={() => toggleArray(expandedChapters, setExpandedChapters, chapter._id)} className="w-full flex items-center justify-between p-3 transition-colors hover:bg-gray-50 bg-gray-50/50">
-                      <div className="flex items-center gap-3">
-                        <div className="w-6 h-6 rounded flex items-center justify-center text-xs font-bold bg-blue-100 text-blue-700">{index + 1}</div>
-                        <span className="font-extrabold text-gray-800 text-sm text-left">{chapter.title || `Chương ${index + 1}`}</span>
-                      </div>
-                      {expandedChapters.includes(chapter._id) ? <ChevronDown size={16} className="text-gray-400"/> : <ChevronRight size={16} className="text-gray-400"/>}
-                    </button>
-                    
-                    {expandedChapters.includes(chapter._id) && (
-                      <div className="p-2 space-y-2 border-t border-gray-100">
-                        {chapter.sections?.map(section => (
-                          <div key={section._id} className="bg-white border border-gray-100 rounded-lg shadow-sm">
-                            <button onClick={() => toggleArray(expandedSections, setExpandedSections, section._id)} className="w-full flex items-center justify-between p-2.5 text-xs font-bold text-orange-600 hover:bg-orange-50 rounded-t-lg transition-colors">
-                              <span className="text-left flex items-center gap-1.5"><BookOpen size={14}/> {section.title}</span>
-                              {expandedSections.includes(section._id) ? <ChevronDown size={14}/> : <ChevronRight size={14}/>}
-                            </button>
-                            
-                            {expandedSections.includes(section._id) && (
-                              <div className="p-1.5 space-y-2">
-                                {section.lessons?.map(lesson => {
-                                  const isPlaying = activeLesson?._id === lesson._id;
-                                  const completed = isLessonCompleted(lesson._id);
-                                  const isLessonExpanded = expandedLessons.includes(lesson._id);
-                                  
-                                  return (
-                                    <div key={lesson._id} className={`border rounded-lg overflow-hidden transition-all ${isPlaying ? 'border-blue-200 bg-blue-50/20' : 'border-gray-100 hover:border-gray-200'}`}>
-                                      <div className="flex items-center w-full bg-white">
-                                        <button onClick={() => loadPreviousAnswers(lesson)} className={`flex-1 flex items-start gap-2 p-2.5 text-xs text-left transition-all ${isPlaying ? 'bg-blue-50/50' : 'hover:bg-gray-50'}`}>
-                                          {completed ? <CheckCircle2 size={16} className="mt-0.5 text-blue-500" /> : <PlayCircle size={16} className={`mt-0.5 ${isPlaying ? "text-blue-600" : "text-gray-400"}`}/>}
-                                          <div className="flex-1 pr-1">
-                                            <div className={`font-bold leading-tight mb-1 ${isPlaying ? 'text-blue-800' : 'text-gray-700'}`}>{lesson.title}</div>
-                                            <div className="flex flex-wrap items-center gap-2 text-[10px] font-semibold text-gray-400">
-                                              <span>{formatTime(lesson)}</span>
-                                              {lesson.exercises?.length > 0 && <span className="text-orange-500 bg-orange-50 px-1.5 py-0.5 rounded border border-orange-100">{lesson.exercises.length} Bài tập</span>}
+
+            <div className="flex-1 bg-white border border-slate-100 rounded-2xl p-8 shadow-sm flex flex-col items-center justify-center text-center">
+               <div className="w-16 h-16 rounded-full border-2 border-slate-200 flex items-center justify-center mb-6">
+                 <PlayCircle size={32} className="text-slate-300" />
+               </div>
+               <h3 className="text-xl font-bold text-slate-700 mb-2">Chọn ngày học và nội dung để bắt đầu</h3>
+               <p className="text-slate-500 mb-6 max-w-md">Chọn một ngày học và nội dung từ danh sách bên trái để xem<br/><span className="text-slate-300">-------------------------------------------</span></p>
+               <h4 className="text-lg font-bold text-blue-700 mb-2">{courseData?.title}</h4>
+               <p className="text-slate-600 mb-8">{courseData?.description || "Nội dung chất lượng cao đang chờ bạn khám phá."}</p>
+               <button onClick={handleBuyNow} className="bg-[#10b981] hover:bg-[#059669] text-white font-bold px-8 py-3 rounded-xl transition-colors shadow-sm">
+                 Mua để mở khóa toàn bộ chương trình học
+               </button>
+            </div>
+          </div>
+        ) : (
+          <div className="flex flex-col lg:flex-row gap-6">
+            {/* CỘT TRÁI (Lộ trình học) - CỦA GIAO DIỆN TƯƠNG TÁC */}
+            <aside className="w-full lg:w-[380px] flex-shrink-0 bg-white rounded-xl shadow-sm border border-gray-200 h-fit sticky top-20 max-h-[80vh] flex flex-col">
+              <div className="p-4 border-b border-gray-100 bg-gray-50 rounded-t-xl">
+                <h3 className="font-extrabold text-sm text-gray-800 uppercase tracking-wide">Lộ trình học</h3>
+              </div>
+              <div className="overflow-y-auto p-3 space-y-2 custom-scrollbar">
+                {!enrollment && user?.role !== 'teacher' && user?.role !== 'admin' && id !== 'mock-1' ? (
+                  <div className="p-6 text-center text-gray-400 text-sm font-medium">Bấm Bắt đầu học để xem chi tiết.</div>
+                ) : (
+                  courseData?.chapters?.map((chapter, index) => (
+                    <div key={chapter._id} className="border border-gray-200 rounded-lg overflow-hidden bg-white mb-2 shadow-sm">
+                      <button onClick={() => toggleArray(expandedChapters, setExpandedChapters, chapter._id)} className="w-full flex items-center justify-between p-3 transition-colors hover:bg-gray-50 bg-gray-50/50">
+                        <div className="flex items-center gap-3">
+                          <div className="w-6 h-6 rounded flex items-center justify-center text-xs font-bold bg-blue-100 text-blue-700">{index + 1}</div>
+                          <span className="font-extrabold text-gray-800 text-sm text-left">{chapter.title || `Chương ${index + 1}`}</span>
+                        </div>
+                        {expandedChapters.includes(chapter._id) ? <ChevronDown size={16} className="text-gray-400"/> : <ChevronRight size={16} className="text-gray-400"/>}
+                      </button>
+                      
+                      {expandedChapters.includes(chapter._id) && (
+                        <div className="p-2 space-y-2 border-t border-gray-100">
+                          {chapter.sections?.map(section => (
+                            <div key={section._id} className="bg-white border border-gray-100 rounded-lg shadow-sm">
+                              <button onClick={() => toggleArray(expandedSections, setExpandedSections, section._id)} className="w-full flex items-center justify-between p-2.5 text-xs font-bold text-orange-600 hover:bg-orange-50 rounded-t-lg transition-colors">
+                                <span className="text-left flex items-center gap-1.5"><BookOpen size={14}/> {section.title}</span>
+                                {expandedSections.includes(section._id) ? <ChevronDown size={14}/> : <ChevronRight size={14}/>}
+                              </button>
+                              
+                              {expandedSections.includes(section._id) && (
+                                <div className="p-1.5 space-y-2">
+                                  {section.lessons?.map(lesson => {
+                                    const isPlaying = activeLesson?._id === lesson._id;
+                                    const completed = isLessonCompleted(lesson._id);
+                                    const isLessonExpanded = expandedLessons.includes(lesson._id);
+                                    
+                                    return (
+                                      <div key={lesson._id} className={`border rounded-lg overflow-hidden transition-all ${isPlaying ? 'border-blue-200 bg-blue-50/20' : 'border-gray-100 hover:border-gray-200'}`}>
+                                        <div className="flex items-center w-full bg-white">
+                                          <button onClick={() => loadPreviousAnswers(lesson)} className={`flex-1 flex items-start gap-2 p-2.5 text-xs text-left transition-all ${isPlaying ? 'bg-blue-50/50' : 'hover:bg-gray-50'}`}>
+                                            {completed ? <CheckCircle2 size={16} className="mt-0.5 text-blue-500" /> : <PlayCircle size={16} className={`mt-0.5 ${isPlaying ? "text-blue-600" : "text-gray-400"}`}/>}
+                                            <div className="flex-1 pr-1">
+                                              <div className={`font-bold leading-tight mb-1 ${isPlaying ? 'text-blue-800' : 'text-gray-700'}`}>{lesson.title}</div>
+                                              <div className="flex flex-wrap items-center gap-2 text-[10px] font-semibold text-gray-400">
+                                                <span>{formatTime(lesson)}</span>
+                                                {lesson.exercises?.length > 0 && <span className="text-orange-500 bg-orange-50 px-1.5 py-0.5 rounded border border-orange-100">{lesson.exercises.length} Bài tập</span>}
+                                              </div>
                                             </div>
-                                          </div>
-                                        </button>
-                                        
-                                        {lesson.exercises && lesson.exercises.length > 0 && (
-                                          <button onClick={(e) => { e.stopPropagation(); toggleArray(expandedLessons, setExpandedLessons, lesson._id); }} className={`p-3 border-l border-gray-100 hover:bg-gray-100 transition-colors ${isLessonExpanded ? 'text-blue-500' : 'text-gray-400'}`}>
-                                             {isLessonExpanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
                                           </button>
+                                          
+                                          {lesson.exercises && lesson.exercises.length > 0 && (
+                                            <button onClick={(e) => { e.stopPropagation(); toggleArray(expandedLessons, setExpandedLessons, lesson._id); }} className={`p-3 border-l border-gray-100 hover:bg-gray-100 transition-colors ${isLessonExpanded ? 'text-blue-500' : 'text-gray-400'}`}>
+                                               {isLessonExpanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+                                            </button>
+                                          )}
+                                        </div>
+                                        
+                                        {isLessonExpanded && lesson.exercises && lesson.exercises.length > 0 && (
+                                          <div className="flex flex-col gap-1 pl-4 border-l-[3px] border-orange-300 ml-4 py-3 bg-gray-50/50">
+                                            {lesson.exercises.map((ex, eIdx) => {
+                                              let displayedScore = "Chưa HT";
+                                              let scoreClass = "text-gray-500 bg-gray-200 border-gray-300";
+                                              
+                                              if (completed) {
+                                                 const prog = enrollment?.progress?.find(p => p.lessonId === lesson._id);
+                                                 const ansObj = prog?.answers?.[ex._id];
+                                                 const earned = calculateExerciseScore(ex, ansObj);
+                                                 const maxPts = ex.questions?.reduce((sum, qGroup) => sum + (qGroup.subQuestions?.reduce((s, sq) => s + (sq.points || 0), 0) || 0), 0) || 0;
+                                                 
+                                                 displayedScore = `${earned} đ`;
+                                                 if (earned >= maxPts && maxPts > 0) scoreClass = "text-green-700 bg-green-100 border-green-200";
+                                                 else if (earned > 0) scoreClass = "text-yellow-700 bg-yellow-100 border-yellow-200";
+                                                 else scoreClass = "text-red-700 bg-red-100 border-red-200";
+                                              }
+
+                                              const handleClickEx = () => { if (!isPlaying) loadPreviousAnswers(lesson); setTimeout(() => scrollToExercise(eIdx), 150); };
+
+                                              return (
+                                                <button key={ex._id || eIdx} onClick={handleClickEx} className="text-left flex items-center gap-2 text-[12px] text-gray-600 hover:text-blue-600 py-1.5 pr-3 rounded-md hover:bg-white transition-colors group">
+                                                   <PenTool size={14} className="text-orange-400 flex-shrink-0 group-hover:text-blue-500 transition-colors"/>
+                                                   <span className="flex-1 truncate font-medium" title={getTypeLabel(ex.type)}>Bài {eIdx + 1}: {getTypeLabel(ex.type)}</span>
+                                                   <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded whitespace-nowrap border ${scoreClass}`}>{displayedScore}</span>
+                                                </button>
+                                              );
+                                            })}
+                                          </div>
                                         )}
                                       </div>
-                                      
-                                      {isLessonExpanded && lesson.exercises && lesson.exercises.length > 0 && (
-                                        <div className="flex flex-col gap-1 pl-4 border-l-[3px] border-orange-300 ml-4 py-3 bg-gray-50/50">
-                                          {lesson.exercises.map((ex, eIdx) => {
-                                            let displayedScore = "Chưa HT";
-                                            let scoreClass = "text-gray-500 bg-gray-200 border-gray-300";
-                                            
-                                            if (completed) {
-                                               const prog = enrollment?.progress?.find(p => p.lessonId === lesson._id);
-                                               const ansObj = prog?.answers?.[ex._id];
-                                               const earned = calculateExerciseScore(ex, ansObj);
-                                               const maxPts = ex.questions?.reduce((sum, qGroup) => sum + (qGroup.subQuestions?.reduce((s, sq) => s + (sq.points || 0), 0) || 0), 0) || 0;
-                                               
-                                               displayedScore = `${earned} đ`;
-                                               if (earned >= maxPts && maxPts > 0) scoreClass = "text-green-700 bg-green-100 border-green-200";
-                                               else if (earned > 0) scoreClass = "text-yellow-700 bg-yellow-100 border-yellow-200";
-                                               else scoreClass = "text-red-700 bg-red-100 border-red-200";
-                                            }
-
-                                            const handleClickEx = () => {
-                                              if (!isPlaying) loadPreviousAnswers(lesson);
-                                              setTimeout(() => scrollToExercise(eIdx), 150);
-                                            };
-
-                                            return (
-                                              <button key={ex._id || eIdx} onClick={handleClickEx} className="text-left flex items-center gap-2 text-[12px] text-gray-600 hover:text-blue-600 py-1.5 pr-3 rounded-md hover:bg-white transition-colors group">
-                                                 <PenTool size={14} className="text-orange-400 flex-shrink-0 group-hover:text-blue-500 transition-colors"/>
-                                                 <span className="flex-1 truncate font-medium" title={getTypeLabel(ex.type)}>Bài {eIdx + 1}: {getTypeLabel(ex.type)}</span>
-                                                 <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded whitespace-nowrap border ${scoreClass}`}>{displayedScore}</span>
-                                              </button>
-                                            );
-                                          })}
-                                        </div>
-                                      )}
-                                    </div>
-                                  );
-                                })}
-                              </div>
-                            )}
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                ))
-              )}
-            </div>
-          </aside>
-
-          <main className="w-full flex-1 flex flex-col gap-6">
-            {!activeLesson ? (
-              <div className="bg-white p-8 rounded-xl border border-gray-200 shadow-sm text-center">
-                <h2 className="text-2xl font-extrabold text-gray-800 mb-2">{courseData?.title}</h2>
-                <p className="text-gray-500 text-sm font-medium">{courseData?.description}</p>
-                <div className="mt-8 p-12 bg-black rounded-xl">
-                   <h2 className="text-2xl font-bold text-white">Hãy bấm Bắt đầu học ngay!</h2>
-                </div>
-              </div>
-            ) : (
-              <div className="bg-white p-5 md:p-8 rounded-xl border border-gray-200 shadow-sm text-left relative">
-                <h2 className="text-2xl font-extrabold text-gray-800 mb-6">{activeLesson.title}</h2>
-                
-                <div className="mb-10">
-                  <h4 className="font-extrabold text-blue-800 mb-5 flex items-center gap-3 uppercase tracking-wider text-sm">
-                    <span className="bg-blue-600 text-white w-7 h-7 rounded-lg flex items-center justify-center shadow-sm">1</span>
-                    Nội dung lý thuyết
-                  </h4>
-                  <div className="bg-black w-full rounded-xl shadow-sm overflow-hidden aspect-video flex items-center justify-center relative border border-gray-200">
-                    {renderMedia()}
-                  </div>
-                </div>
-
-                {activeLesson.exercises?.length > 0 && (
-                  <div>
-                    <h4 className="font-extrabold text-orange-800 mb-6 flex items-center gap-3 uppercase tracking-wider text-sm pt-6 border-t border-gray-100">
-                      <span className="bg-orange-600 text-white w-7 h-7 rounded-lg flex items-center justify-center shadow-sm">2</span>
-                      Bài tập thực hành đi kèm
-                    </h4>
-                    
-                    <div className="space-y-6">
-                      {activeLesson.exercises.map((ex, idx) => renderStudentExercise(ex, idx))}
-                    </div>
-
-                    <div className="mt-8 border-t border-gray-100 pt-6">
-                       <div className="mb-6 flex flex-wrap items-center gap-2 justify-center p-4 bg-gray-50 rounded-lg border border-gray-200 shadow-inner">
-                          <span className="text-sm font-bold text-gray-500 mr-2">Danh sách Bài tập:</span>
-                          {activeLesson.exercises.map((ex, idx) => {
-                             const studentAnsObj = answers[ex._id];
-                             const isAns = studentAnsObj && Object.keys(studentAnsObj).length > 0;
-                             
-                             let btnClass = 'bg-white text-gray-500 border-gray-300 hover:bg-gray-100';
-                             
-                             if (isLessonCompleted(activeLesson._id) && !isRedoing) {
-                                const earned = calculateExerciseScore(ex, studentAnsObj);
-                                const maxPts = ex.questions?.reduce((sum, qGroup) => sum + (qGroup.subQuestions?.reduce((s, sq) => s + (sq.points || 0), 0) || 0), 0) || 0;
-                                
-                                if (earned >= maxPts && maxPts > 0) btnClass = 'bg-green-500 text-white border-green-500';
-                                else if (earned > 0) btnClass = 'bg-yellow-500 text-white border-yellow-500';
-                                else btnClass = 'bg-red-500 text-white border-red-500'; 
-                             } else if (isAns) {
-                                btnClass = 'bg-blue-500 text-white border-blue-500';
-                             }
-                             
-                             return (
-                              <button key={ex._id} onClick={() => scrollToExercise(idx)} type="button" className={`w-9 h-9 flex items-center justify-center rounded-md text-sm font-bold border transition-colors shadow-sm ${btnClass}`} title={`Đến bài ${idx + 1}`}>
-                                {idx + 1}
-                              </button>
-                             )
-                          })}
-                       </div>
-                    </div>
-                  </div>
-                )}
-
-                <div className="flex flex-col md:flex-row items-center justify-between gap-4 mt-8 pt-6 border-t border-gray-100">
-                  {prevLesson ? <button onClick={() => loadPreviousAnswers(prevLesson)} className="flex items-center gap-2 text-gray-500 hover:text-blue-600 font-bold px-4 py-2.5 text-sm bg-white border border-gray-200 rounded-lg shadow-sm transition-colors"><ChevronLeft size={16}/> Bài trước</button> : <div></div>}
-                  
-                  {user?.role !== 'teacher' && user?.role !== 'admin' ? (
-                    <div className="flex gap-3 w-full md:w-auto">
-                      {isLessonCompleted(activeLesson._id) && !isRedoing ? (
-                        <button onClick={handleRedoLesson} className="font-bold py-3 px-8 rounded-lg shadow-sm bg-indigo-50 border border-indigo-200 text-indigo-700 hover:bg-indigo-100 flex items-center justify-center gap-2 w-full md:w-auto text-sm transition-colors">
-                          <RotateCcw size={18}/> Làm lại bài này
-                        </button>
-                      ) : (
-                        <button onClick={handleSubmitLesson} disabled={isSubmitting} className="font-bold py-3 px-8 rounded-lg shadow-sm bg-blue-600 hover:bg-blue-700 text-white flex items-center justify-center gap-2 w-full md:w-auto text-sm transition-colors disabled:opacity-50">
-                          {isSubmitting ? <Loader2 className="animate-spin" size={18}/> : <CheckCircle2 size={18}/>}
-                          {isSubmitting ? "Đang chấm..." : "Nộp bài"}
-                        </button>
+                                    );
+                                  })}
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
                       )}
                     </div>
-                  ) : (
-                    <div className="px-6 py-2.5 bg-gray-100 text-gray-500 rounded-lg font-bold text-sm border border-gray-200">Giáo viên xem trước</div>
+                  ))
+                )}
+              </div>
+            </aside>
+
+            {/* CỘT PHẢI (Nội dung bài học) - CỦA GIAO DIỆN TƯƠNG TÁC */}
+            <main className="w-full flex-1 flex flex-col gap-6">
+              {!activeLesson ? (
+                <div className="bg-white p-8 rounded-xl border border-gray-200 shadow-sm text-center">
+                  <h2 className="text-2xl font-extrabold text-gray-800 mb-2">{courseData?.title}</h2>
+                  <p className="text-gray-500 text-sm font-medium">{courseData?.description}</p>
+                  <div className="mt-8 p-12 bg-black rounded-xl">
+                     <h2 className="text-2xl font-bold text-white">Hãy bấm Bắt đầu học ngay!</h2>
+                  </div>
+                </div>
+              ) : (
+                <div className="bg-white p-5 md:p-8 rounded-xl border border-gray-200 shadow-sm text-left relative">
+                  <h2 className="text-2xl font-extrabold text-gray-800 mb-6">{activeLesson.title}</h2>
+                  
+                  <div className="mb-10">
+                    <h4 className="font-extrabold text-blue-800 mb-5 flex items-center gap-3 uppercase tracking-wider text-sm">
+                      <span className="bg-blue-600 text-white w-7 h-7 rounded-lg flex items-center justify-center shadow-sm">1</span>
+                      Nội dung lý thuyết
+                    </h4>
+                    <div className="bg-black w-full rounded-xl shadow-sm overflow-hidden aspect-video flex items-center justify-center relative border border-gray-200">
+                      {renderMedia()}
+                    </div>
+                  </div>
+
+                  {activeLesson.exercises?.length > 0 && (
+                    <div>
+                      <h4 className="font-extrabold text-orange-800 mb-6 flex items-center gap-3 uppercase tracking-wider text-sm pt-6 border-t border-gray-100">
+                        <span className="bg-orange-600 text-white w-7 h-7 rounded-lg flex items-center justify-center shadow-sm">2</span>
+                        Bài tập thực hành đi kèm
+                      </h4>
+                      
+                      <div className="space-y-6">
+                        {activeLesson.exercises.map((ex, idx) => renderStudentExercise(ex, idx))}
+                      </div>
+
+                      <div className="mt-8 border-t border-gray-100 pt-6">
+                         <div className="mb-6 flex flex-wrap items-center gap-2 justify-center p-4 bg-gray-50 rounded-lg border border-gray-200 shadow-inner">
+                            <span className="text-sm font-bold text-gray-500 mr-2">Danh sách Bài tập:</span>
+                            {activeLesson.exercises.map((ex, idx) => {
+                               const studentAnsObj = answers[ex._id];
+                               const isAns = studentAnsObj && Object.keys(studentAnsObj).length > 0;
+                               let btnClass = 'bg-white text-gray-500 border-gray-300 hover:bg-gray-100';
+                               
+                               if (isLessonCompleted(activeLesson._id) && !isRedoing) {
+                                  const earned = calculateExerciseScore(ex, studentAnsObj);
+                                  const maxPts = ex.questions?.reduce((sum, qGroup) => sum + (qGroup.subQuestions?.reduce((s, sq) => s + (sq.points || 0), 0) || 0), 0) || 0;
+                                  if (earned >= maxPts && maxPts > 0) btnClass = 'bg-green-500 text-white border-green-500';
+                                  else if (earned > 0) btnClass = 'bg-yellow-500 text-white border-yellow-500';
+                                  else btnClass = 'bg-red-500 text-white border-red-500'; 
+                               } else if (isAns) { btnClass = 'bg-blue-500 text-white border-blue-500'; }
+                               
+                               return (
+                                <button key={ex._id} onClick={() => scrollToExercise(idx)} type="button" className={`w-9 h-9 flex items-center justify-center rounded-md text-sm font-bold border transition-colors shadow-sm ${btnClass}`} title={`Đến bài ${idx + 1}`}>{idx + 1}</button>
+                               )
+                            })}
+                         </div>
+                      </div>
+                    </div>
                   )}
 
-                  {nextLesson ? <button onClick={() => loadPreviousAnswers(nextLesson)} className="flex items-center gap-2 text-gray-500 hover:text-blue-600 font-bold px-4 py-2.5 text-sm bg-white border border-gray-200 rounded-lg shadow-sm transition-colors">Bài tiếp <IconNext size={16}/></button> : <div></div>}
+                  <div className="flex flex-col md:flex-row items-center justify-between gap-4 mt-8 pt-6 border-t border-gray-100">
+                    {prevLesson ? <button onClick={() => loadPreviousAnswers(prevLesson)} className="flex items-center gap-2 text-gray-500 hover:text-blue-600 font-bold px-4 py-2.5 text-sm bg-white border border-gray-200 rounded-lg shadow-sm transition-colors"><ChevronLeft size={16}/> Bài trước</button> : <div></div>}
+                    
+                    {user?.role !== 'teacher' && user?.role !== 'admin' ? (
+                      <div className="flex gap-3 w-full md:w-auto">
+                        {isLessonCompleted(activeLesson._id) && !isRedoing ? (
+                          <button onClick={handleRedoLesson} className="font-bold py-3 px-8 rounded-lg shadow-sm bg-indigo-50 border border-indigo-200 text-indigo-700 hover:bg-indigo-100 flex items-center justify-center gap-2 w-full md:w-auto text-sm transition-colors">
+                            <RotateCcw size={18}/> Làm lại bài này
+                          </button>
+                        ) : (
+                          <button onClick={handleSubmitLesson} disabled={isSubmitting} className="font-bold py-3 px-8 rounded-lg shadow-sm bg-blue-600 hover:bg-blue-700 text-white flex items-center justify-center gap-2 w-full md:w-auto text-sm transition-colors disabled:opacity-50">
+                            {isSubmitting ? <Loader2 className="animate-spin" size={18}/> : <CheckCircle2 size={18}/>}
+                            {isSubmitting ? "Đang chấm..." : "Nộp bài"}
+                          </button>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="px-6 py-2.5 bg-gray-100 text-gray-500 rounded-lg font-bold text-sm border border-gray-200">Giáo viên xem trước</div>
+                    )}
+                    {nextLesson ? <button onClick={() => loadPreviousAnswers(nextLesson)} className="flex items-center gap-2 text-gray-500 hover:text-blue-600 font-bold px-4 py-2.5 text-sm bg-white border border-gray-200 rounded-lg shadow-sm transition-colors">Bài tiếp <IconNext size={16}/></button> : <div></div>}
+                  </div>
                 </div>
-
-              </div>
-            )}
-          </main>
-        </div>
+              )}
+            </main>
+          </div>
+        )}
       </div>
       <style dangerouslySetColor="text/css">{`.perspective-1000 { perspective: 1000px; } .transform-style-3d { transform-style: preserve-3d; } .backface-hidden { backface-visibility: hidden; } .rotate-y-180 { transform: rotateY(180deg); }`}</style>
     </div>

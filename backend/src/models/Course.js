@@ -57,7 +57,13 @@ const courseSchema = new mongoose.Schema({
   description: { type: String, default: '' },
   thumbnail: { type: String, default: '' },
   subject: { type: String, required: true, default: 'Khác' },
-  tag: { type: String, default: 'Cơ bản' },
+  
+  // --- CÁC TRƯỜNG MỚI THÊM ĐỂ HIỂN THỊ BÁN HÀNG KHÓA LẺ ---
+  tags: [{ type: String }], // Ghi đè lên trường 'tag' cũ dạng string, giờ thành mảng: ["Luyện thi", "Mua lẻ"]
+  features: [{ type: String }], // Các dòng mô tả (bullet points) hiển thị ngoài giỏ hàng
+  priority: { type: Number, default: 0 }, 
+  durationDays: { type: Number, default: 9999 }, // Mặc định 9999 (Vĩnh viễn) hoặc 365 (1 năm)
+  
   teacher: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
   price: { type: Number, default: 0 },
   views: { type: Number, default: 0 },

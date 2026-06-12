@@ -1,6 +1,7 @@
 // controllers/course.controller.js
 import { Course } from '../models/Course.js';
 import { Enrollment } from '../models/Enrollment.js';
+import { UserPackage } from '../models/UserPackage.js'; // MỚI THÊM
 
 export const createCourse = async (req, res) => {
   try {
@@ -80,7 +81,6 @@ export const submitLesson = async (req, res) => {
 
     let score = 0;
     
-    // LOGIC CHẤM ĐIỂM CẬP NHẬT THEO CẤU TRÚC 2 TẦNG (GIỐNG HỆT BÊN FRONTEND)
     if (targetLesson.exercises && targetLesson.exercises.length > 0) {
       targetLesson.exercises.forEach(ex => {
         const studentAnsObj = answers[ex._id.toString()];
@@ -109,7 +109,6 @@ export const submitLesson = async (req, res) => {
                 case 'essay':
                   score += maxPts; break; 
                 default: { 
-                  // multiple_choice, fill_blank, listening, flashcard, reading
                   const ansStr = typeof ans === 'object' ? (ans.choice || '') : ans;
                   if (ansStr.toString().trim().toLowerCase() === (sq.correctAnswer || '').toString().trim().toLowerCase()) {
                      score += maxPts;
@@ -158,13 +157,61 @@ export const getCourseParticipants = async (req, res) => {
   } catch (error) { res.status(500).json({ message: 'Lỗi tải thống kê' }); }
 };
 
+// --- LOGIC ĐƯỢC CẬP NHẬT: TÍNH TOÁN NGÀY HẾT HẠN ---
 export const getMyEnrolledCourses = async (req, res) => {
   try {
-    const enrollments = await Enrollment.find({ student: req.user._id })
-      .populate('course')
-      .sort({ createdAt: -1 }); 
+    const userId = req.user._id;
+    const now = new Date();
+
+    const enrollments = await Enrollment.find({ student: userId }).populate('course').lean();
+    
+    const userPackages = await UserPackage.find({ user: userId }).populate({
+      path: 'package',
+      populate: { path: 'courses' }
+    }).lean();
+
+    const courseMap = new Map();
+
+    enrollments.forEach(enr => {
+      if (enr.course) {
+        courseMap.set(enr.course._id.toString(), {
+          ...enr,
+          expireAt: null, 
+          isExpired: false
+        });
+      }
+    });
+
+    userPackages.forEach(userPkg => {
+      const expireDate = new Date(userPkg.expireAt);
+      const isExpired = expireDate < now;
       
-    res.status(200).json(enrollments);
+      if (userPkg.package && userPkg.package.courses) {
+        userPkg.package.courses.forEach(course => {
+          const cId = course._id.toString();
+          
+          if (courseMap.has(cId)) {
+            const existing = courseMap.get(cId);
+            existing.expireAt = expireDate;
+            existing.isExpired = isExpired;
+            existing.packageTitle = userPkg.package.title;
+          } else {
+            courseMap.set(cId, {
+              course: course,
+              progress: [],
+              totalScore: 0,
+              updatedAt: userPkg.createdAt,
+              expireAt: expireDate,
+              isExpired: isExpired,
+              packageTitle: userPkg.package.title
+            });
+          }
+        });
+      }
+    });
+
+    const finalCourses = Array.from(courseMap.values());
+    res.status(200).json({ enrollments: finalCourses });
   } catch (error) { 
     res.status(500).json({ message: 'Lỗi lấy danh sách khóa học đang học' }); 
   }
