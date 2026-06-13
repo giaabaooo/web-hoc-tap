@@ -3,7 +3,7 @@ import {
   Users, LayoutDashboard, BookOpen, MessageSquare, BarChart3, LogOut, GraduationCap
 } from 'lucide-react';
 
-export const AdminSidebar = ({ activeTab, setActiveTab, setSearchQuery, handleLogout }) => {
+export const AdminSidebar = ({ activeTab, setActiveTab, handleLogout }) => {
   const navItems = [
     { id: 'overview', icon: <LayoutDashboard size={18} />, label: 'Tổng quan hệ thống' },
     { id: 'users', icon: <Users size={18} />, label: 'Quản lý Học sinh' },
@@ -27,7 +27,7 @@ export const AdminSidebar = ({ activeTab, setActiveTab, setSearchQuery, handleLo
           {navItems.map(item => (
             <button 
               key={item.id}
-              onClick={() => { setActiveTab(item.id); setSearchQuery(''); }} 
+              onClick={() => setActiveTab(item.id)} 
               className={`w-full flex items-center justify-between px-4 py-3 rounded-xl text-sm font-semibold transition-all ${activeTab === item.id ? 'bg-blue-50 text-blue-600' : 'text-slate-500 hover:bg-slate-50 hover:text-slate-900'}`}
             >
               <div className="flex items-center gap-3">{item.icon} {item.label}</div>

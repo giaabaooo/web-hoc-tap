@@ -16,3 +16,14 @@ export const updateProfile = async (req, res) => {
     res.status(500).json({ message: "Lỗi hệ thống khi cập nhật hồ sơ" });
   }
 };
+export const getProfile = async (req, res) => {
+  try {
+    const user = await User.findById(req.user._id).select('-password');
+    if (!user) {
+      return res.status(404).json({ message: 'Không tìm thấy người dùng!' });
+    }
+    res.status(200).json(user);
+  } catch (error) {
+    res.status(500).json({ message: 'Lỗi khi lấy thông tin người dùng!' });
+  }
+};

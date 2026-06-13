@@ -15,7 +15,8 @@ import {
   getUserAccess,     // MỚI: API Lấy danh sách sở hữu
   revokeUserAccess,
   updatePackage,
-  updateCourseMarketing
+  updateCourseMarketing,
+  assignSubjectsToTeacher
 } from '../controllers/admin.controller.js';
 
 const router = express.Router();
@@ -46,4 +47,5 @@ router.post('/packages', createPackage);
 router.get('/packages', getAllPackages);
 router.put('/packages/:id', updatePackage);
 router.put('/courses/:id/marketing', updateCourseMarketing);
+router.put('/teachers/:id/subjects', assignSubjectsToTeacher); // MỚI: Gán môn học cho giáo viên
 export default router;

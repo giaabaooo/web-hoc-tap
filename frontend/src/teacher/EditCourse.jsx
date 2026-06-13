@@ -3,7 +3,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 import { useParams, useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
-import { Plus, Image as ImageIcon, Video, Trash2, FileEdit, Mic, Headphones, ScanLine, Type, FileText, ChevronDown, ChevronUp, ImagePlus, List, X, AlignLeft, ArrowLeft, ArrowUp, ArrowDown, Save, Send, Loader2, Check } from 'lucide-react';
+import { Plus, Image as ImageIcon, Video, Trash2, FileEdit, Mic, Headphones, ScanLine, Type, FileText, ChevronDown, ChevronUp, ImagePlus, List, X, AlignLeft, ArrowLeft, ArrowUp, ArrowDown, Save, Send, Loader2, Check, AlertCircle } from 'lucide-react';
 import { useAuthStore } from '../store/useAuthStore'; 
 
 const QuickUploadZone = ({ value, onChange, onUpload, placeholder, type = "text", isAudio = false }) => {
@@ -130,7 +130,7 @@ export const EditCourse = () => {
   const [isTocOpen, setIsTocOpen] = useState(true); 
   const [collapsed, setCollapsed] = useState({ chapters: {}, sections: {}, lessons: {}, exercises: {}, questions: {} });
   
-  const [courseInfo, setCourseInfo] = useState({ title: '', description: '', subject: 'Tiếng Anh', tag: 'Cơ bản', price: '', thumbnail: '' });
+  const [courseInfo, setCourseInfo] = useState({ title: '', description: '', subject: '', tag: 'Cơ bản', price: '', thumbnail: '' });
   
   const defaultSubQuestion = { question: '', options: ['', '', '', ''], correctAnswer: '', points: 10, contentUrl: '', audioUrl: '', startTime: 0, endTime: 0 };
   const defaultQuestionGroup = { question: '', contentUrl: '', audioUrl: '', startTime: 0, endTime: 0, subQuestions: [ { ...defaultSubQuestion } ] };
@@ -148,12 +148,36 @@ export const EditCourse = () => {
   const stickyTopClass = isAdmin ? 'top-0' : 'top-[70px]';
   const sidebarHeightClass = isAdmin ? 'h-screen' : 'h-[calc(100vh-70px)]';
 
+  // FIX QUAN TRỌNG: Đồng bộ phân quyền realtime cho EditCourse
+  const ALL_SUBJECTS = ['Tiếng Anh', 'Toán', 'Ngữ Văn', 'Vật Lý', 'Hóa Học', 'Sinh Học', 'Khác'];
+  const [allowedSubjects, setAllowedSubjects] = useState([]);
+  const [isCheckingAuth, setIsCheckingAuth] = useState(true);
+
+  useEffect(() => {
+    const fetchFreshPermissions = async () => {
+      setIsCheckingAuth(true);
+      try {
+        const res = await axios.get(`${API_URL}/api/users/profile`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        const freshUser = res.data;
+        const subjects = freshUser.role === 'admin' ? ALL_SUBJECTS : (freshUser.allowedSubjects || []);
+        setAllowedSubjects(subjects);
+      } catch (error) {
+        console.error("Lỗi đồng bộ quyền từ server:", error);
+      } finally {
+        setIsCheckingAuth(false);
+      }
+    };
+    if (token) fetchFreshPermissions();
+  }, [token]);
+
   useEffect(() => {
     const fetchCourseData = async () => {
       try {
         const res = await axios.get(`${API_URL}/api/courses/${id}`);
         const data = res.data.course; 
-        const info = { title: data.title || '', description: data.description || '', subject: data.subject || 'Tiếng Anh', tag: data.tag || 'Cơ bản', price: data.price || 0, thumbnail: data.thumbnail || '' };
+        const info = { title: data.title || '', description: data.description || '', subject: data.subject || '', tag: data.tag || 'Cơ bản', price: data.price || 0, thumbnail: data.thumbnail || '' };
         setCourseInfo(info);
         
         let chaps = [];
@@ -218,7 +242,7 @@ export const EditCourse = () => {
   }, [id, API_URL, navigate, isAdmin]);
 
   useEffect(() => {
-    if (isLoading) return;
+    if (isLoading || isCheckingAuth) return;
     const timer = setInterval(() => {
       if (!courseInfo.title.trim()) return; 
       const currentDataStr = JSON.stringify({ courseInfo, chapters });
@@ -231,7 +255,7 @@ export const EditCourse = () => {
       }
     }, 5000);
     return () => clearInterval(timer);
-  }, [courseInfo, chapters, lastSavedData, isLoading]);
+  }, [courseInfo, chapters, lastSavedData, isLoading, isCheckingAuth]);
 
   const goBack = () => {
     if (isAdmin) navigate('/admin-dashboard?tab=courses');
@@ -245,7 +269,7 @@ export const EditCourse = () => {
     setCollapsed(prev => {
       const newCol = { ...prev };
       newCol.chapters[`chapter-${cIndex}`] = false;
-      if (type === 'section' || type === 'lesson' || type === 'exercise') newCol.sections[`section-${cIndex}-${sIndex}`] = false;
+      if (type === 'section' || type === 'lesson' || type === 'exercise') newCol.sections[`section-${cIndex}`] = false;
       if (type === 'lesson' || type === 'exercise') newCol.lessons[`lesson-${cIndex}-${sIndex}-${lIndex}`] = false;
       if (type === 'exercise') newCol.exercises[`exercise-${cIndex}-${sIndex}-${lIndex}-${eIndex}`] = false;
       return newCol;
@@ -270,6 +294,7 @@ export const EditCourse = () => {
   const validateData = () => {
     if (!courseInfo.title.trim()) return "Vui lòng nhập Tên khóa học!";
     if (!courseInfo.thumbnail) return "Vui lòng tải lên Ảnh bìa!";
+    if (!courseInfo.subject) return "Vui lòng chọn Bộ môn! (Nếu không có bộ môn nào, hãy liên hệ Admin)";
     return null;
   };
 
@@ -714,7 +739,7 @@ export const EditCourse = () => {
     );
   };
 
-  if (isLoading) return <div className="flex items-center justify-center min-h-screen text-blue-500"><Loader2 className="animate-spin mr-2" /> Đang tải...</div>;
+  if (isLoading || isCheckingAuth) return <div className="flex flex-col items-center justify-center min-h-screen text-blue-600 gap-3"><Loader2 className="animate-spin" size={32} /><span className="font-bold text-sm">Đang tải dữ liệu...</span></div>;
 
   return (
     <div className="flex w-full font-sans min-h-screen bg-[#f8fafc]">
@@ -779,24 +804,60 @@ export const EditCourse = () => {
             </div>
             <div className="h-6 w-px bg-gray-200 mx-1 hidden sm:block"></div>
             
-            {/* THÊM NÚT ĐỂ ADMIN/TEACHER QUAY LẠI */}
             <button onClick={goBack} className="flex items-center gap-1 text-gray-500 hover:text-gray-800 px-3 py-2 rounded-lg transition-colors font-bold text-sm"><ArrowLeft size={16}/> Thoát</button>
             
-            <button onClick={() => handleUpdateCourse(false)} disabled={isSavingDraft || isUploading || isAutoSaving} className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold border border-gray-300 text-gray-700 hover:bg-gray-50 transition-colors bg-white shadow-sm disabled:opacity-50"><Save size={16}/> <span className="hidden md:inline">{isSavingDraft ? "Đang lưu..." : "Lưu Bản Nháp"}</span></button>
-            <button onClick={() => handleUpdateCourse(true)} disabled={isSavingDraft || isUploading || isAutoSaving} className="flex items-center gap-2 bg-blue-600 text-white px-5 py-2 rounded-lg text-sm font-bold hover:bg-blue-700 shadow-md transition-all disabled:opacity-50"><Send size={16}/> <span className="hidden md:inline">Cập nhật (Xuất Bản)</span></button>
+            <button onClick={() => handleUpdateCourse(false)} disabled={isSavingDraft || isUploading || isAutoSaving || allowedSubjects.length === 0} className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold border border-gray-300 text-gray-700 hover:bg-gray-50 transition-colors bg-white shadow-sm disabled:opacity-50"><Save size={16}/> <span className="hidden md:inline">{isSavingDraft ? "Đang lưu..." : "Lưu Bản Nháp"}</span></button>
+            <button onClick={() => handleUpdateCourse(true)} disabled={isSavingDraft || isUploading || isAutoSaving || allowedSubjects.length === 0} className="flex items-center gap-2 bg-blue-600 text-white px-5 py-2 rounded-lg text-sm font-bold hover:bg-blue-700 shadow-md transition-all disabled:opacity-50"><Send size={16}/> <span className="hidden md:inline">Cập nhật (Xuất Bản)</span></button>
           </div>
         </div>
 
         <div id="main-content" className="w-full">
           <div className="max-w-5xl mx-auto px-4 md:px-8 py-8 pb-32">
-            <div className="bg-white p-6 md:p-8 rounded-2xl shadow-sm border border-gray-200 mb-8 mt-2">
+            
+            {/* CẢNH BÁO NẾU GIÁO VIÊN CHƯA ĐƯỢC PHÂN MÔN NÀO */}
+            {allowedSubjects.length === 0 && (
+              <div className="bg-red-50 border-2 border-red-200 p-6 rounded-2xl mb-8 flex flex-col md:flex-row items-center gap-6 shadow-sm animate-fadeIn">
+                <div className="w-16 h-16 bg-red-100 text-red-500 flex items-center justify-center rounded-full shrink-0">
+                  <AlertCircle size={32} />
+                </div>
+                <div>
+                  <h3 className="text-lg font-extrabold text-red-800 mb-1">Bạn chưa được phân quyền giảng dạy bộ môn nào!</h3>
+                  <p className="text-sm text-red-600/80 font-medium">Hệ thống đã khóa tính năng tạo/sửa khóa học để đảm bảo an toàn. Vui lòng liên hệ Quản trị viên (Admin) để được cấp quyền trước khi tiếp tục soạn bài giảng.</p>
+                </div>
+              </div>
+            )}
+
+            <div className={`bg-white p-6 md:p-8 rounded-2xl shadow-sm border border-gray-200 mb-8 mt-2 transition-all ${allowedSubjects.length === 0 ? 'opacity-50 pointer-events-none' : ''}`}>
                <h3 className="text-lg font-bold text-gray-800 border-b border-gray-100 pb-3 mb-6 uppercase tracking-wide">Thông tin cơ bản</h3>
                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                   <div className="space-y-5">
                     <div><label className="block text-sm font-bold mb-1.5 text-gray-700">Tên khóa học *</label><input type="text" name="title" value={courseInfo.title} onChange={handleInfoChange} className="w-full p-3.5 border border-gray-300 rounded-xl bg-gray-50 outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-400 transition-all" /></div>
                     <div><label className="block text-sm font-bold mb-1.5 text-gray-700">Mô tả khóa học</label><textarea name="description" value={courseInfo.description} onChange={handleInfoChange} rows="4" className="w-full p-3 border border-gray-300 rounded-xl bg-gray-50 outline-none focus:ring-2 focus:ring-blue-100 transition-all"></textarea></div>
                     <div className="grid grid-cols-3 gap-4">
-                      <div><label className="block text-sm font-bold mb-1.5 text-gray-700">Môn học</label><select name="subject" value={courseInfo.subject} onChange={handleInfoChange} className="w-full p-3 border border-gray-300 rounded-xl bg-gray-50 outline-none"><option>Tiếng Anh</option><option>Toán</option></select></div>
+                      <div>
+                        <label className="block text-sm font-bold mb-1.5 text-gray-700">Môn học</label>
+                        <select 
+                          name="subject" 
+                          value={courseInfo.subject || ''} 
+                          onChange={handleInfoChange} 
+                          className={`w-full p-3 border rounded-xl outline-none focus:ring-2 focus:ring-blue-100 ${!courseInfo.subject ? 'border-red-300 bg-red-50' : 'border-gray-300 bg-gray-50'}`}
+                        >
+                          <option value="" disabled>-- Chọn môn --</option>
+                          {ALL_SUBJECTS.map((subject) => {
+                            const isAllowed = allowedSubjects.includes(subject);
+                            return (
+                              <option 
+                                key={subject} 
+                                value={subject} 
+                                disabled={!isAllowed}
+                                className={!isAllowed ? 'text-gray-300 bg-gray-100' : 'text-gray-900 font-medium'}
+                              >
+                                {subject} {!isAllowed && '(Không quyền)'}
+                              </option>
+                            );
+                          })}
+                        </select>
+                      </div>
                       <div><label className="block text-sm font-bold mb-1.5 text-gray-700">Phân loại</label><select name="tag" value={courseInfo.tag} onChange={handleInfoChange} className="w-full p-3 border border-gray-300 rounded-xl bg-gray-50 outline-none"><option>Cơ bản</option><option>Nâng cao</option></select></div>
                       <div><label className="block text-sm font-bold mb-1.5 text-gray-700">Giá (VNĐ) *</label><input type="number" name="price" value={courseInfo.price} onChange={handleInfoChange} className="w-full p-3 border border-gray-300 rounded-xl bg-gray-50 outline-none focus:ring-2 focus:ring-orange-100" /></div>
                     </div>
@@ -813,7 +874,7 @@ export const EditCourse = () => {
                </div>
             </div>
 
-            <div className="space-y-8">
+            <div className={`space-y-8 transition-all ${allowedSubjects.length === 0 ? 'opacity-50 pointer-events-none' : ''}`}>
               {chapters.map((chapter, cIndex) => {
                 const chapKey = `chapter-${cIndex}`;
                 const isChapCollapsed = collapsed.chapters[chapKey];

@@ -195,3 +195,24 @@ export const updateCourseMarketing = async (req, res) => {
     res.status(500).json({ message: "Lỗi khi cập nhật khóa học: " + error.message });
   }
 };
+export const assignSubjectsToTeacher = async (req, res) => {
+  try {
+    const { subjects } = req.body; // Mảng các môn học vd: ['Toán', 'Tiếng Anh']
+    const teacherId = req.params.id;
+
+    const teacher = await User.findById(teacherId);
+    if (!teacher || teacher.role !== 'teacher') {
+      return res.status(404).json({ message: 'Không tìm thấy giáo viên này!' });
+    }
+
+    teacher.allowedSubjects = Array.isArray(subjects) ? subjects : [];
+    await teacher.save();
+
+    res.json({ 
+      message: `Đã cập nhật quyền bộ môn cho giáo viên ${teacher.displayName} thành công!`,
+      allowedSubjects: teacher.allowedSubjects 
+    });
+  } catch (error) {
+    res.status(500).json({ message: 'Lỗi khi cấp quyền môn học: ' + error.message });
+  }
+};

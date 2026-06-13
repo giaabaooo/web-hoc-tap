@@ -2,9 +2,19 @@
 import { Course } from '../models/Course.js';
 import { Enrollment } from '../models/Enrollment.js';
 import { UserPackage } from '../models/UserPackage.js'; // MỚI THÊM
+import { User } from '../models/User.js'; // MỚI THÊM
 
 export const createCourse = async (req, res) => {
   try {
+    // FIX BẢO MẬT: Kiểm tra quyền môn học
+    if (req.user.role === 'teacher') {
+      const assignedSubjects = req.user.allowedSubjects || [];
+      const requestedSubject = req.body.subject || 'Khác';
+      if (!assignedSubjects.includes(requestedSubject)) {
+         return res.status(403).json({ message: `Bạn không có quyền tạo khóa học môn: ${requestedSubject}` });
+      }
+    }
+
     const isPublished = req.body.isPublished !== undefined ? req.body.isPublished : true;
     const newCourse = await Course.create({ ...req.body, teacher: req.user._id, isPublished, views: 0 });
     res.status(201).json(newCourse);
@@ -13,6 +23,14 @@ export const createCourse = async (req, res) => {
 
 export const updateCourse = async (req, res) => {
   try { 
+    // FIX BẢO MẬT: Nếu request có đổi môn học, phải kiểm tra quyền
+    if (req.user.role === 'teacher' && req.body.subject) {
+      const assignedSubjects = req.user.allowedSubjects || [];
+      if (!assignedSubjects.includes(req.body.subject)) {
+         return res.status(403).json({ message: `Bạn không có quyền chuyển khóa học sang môn: ${req.body.subject}` });
+      }
+    }
+
     const updatedCourse = await Course.findByIdAndUpdate(req.params.id, req.body, { new: true });
     if (!updatedCourse) return res.status(404).json({ message: 'Không tìm thấy khoá học' });
     res.status(200).json(updatedCourse); 

@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { toast } from 'react-toastify';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom'; // Thay đổi: Dùng useSearchParams
 import { useAuthStore } from '../store/useAuthStore';
 import { Clock } from 'lucide-react';
 
-// Nhập các Components và Tabs đã tách ra
+// Nhập các Components và Tabs
 import { AdminSidebar } from './components/AdminSidebar';
 import { AdminHeader } from './components/AdminHeader';
 import { OverviewTab } from './tabs/OverviewTab';
@@ -16,10 +16,13 @@ import { CoursesTab } from './tabs/CoursesTab';
 
 export const AdminDashboard = () => {
   const navigate = useNavigate();
-  const location = useLocation();
   const { logout } = useAuthStore();
   
-  const [activeTab, setActiveTab] = useState('overview');
+  // FIX F5: Đọc và đồng bộ tab hiện tại với URL parameter
+  const [searchParams, setSearchParams] = useSearchParams();
+  const currentTab = searchParams.get('tab') || 'overview';
+  const [activeTab, setActiveTab] = useState(currentTab);
+
   const [isLoading, setIsLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [timeRange, setTimeRange] = useState('day');
@@ -39,14 +42,12 @@ export const AdminDashboard = () => {
     return { headers: { Authorization: `Bearer ${token}`, 'x-auth-token': token } };
   };
 
-  // Đọc params từ URL để tự động chuyển tab (Hỗ trợ chuyển trang từ EditCourse về lại CoursesTab)
-  useEffect(() => {
-    const params = new URLSearchParams(location.search);
-    const tab = params.get('tab');
-    if (tab) {
-      setActiveTab(tab);
-    }
-  }, [location.search]);
+  // Hàm xử lý chuyển tab và đồng bộ lên URL
+  const handleTabChange = (newTab) => {
+    setActiveTab(newTab);
+    setSearchQuery(''); // Xóa nội dung tìm kiếm khi chuyển tab
+    setSearchParams({ tab: newTab }); // Đẩy tham số lên URL để chặn lỗi F5
+  };
 
   const fetchDashboardData = async () => {
     setIsLoading(true);
@@ -121,30 +122,24 @@ export const AdminDashboard = () => {
     }
   };
 
+  // FIX LỖI: Thêm hàm xử lý cấp quyền bộ môn
+  const handleAssignSubjects = async (teacherId, subjects) => {
+    try {
+      await axios.put(`${API_URL}/api/admin/teachers/${teacherId}/subjects`, { subjects }, getAuthHeaders());
+      toast.success('Đã cập nhật quyền bộ môn thành công!');
+      fetchDashboardData(); // Gọi lại data để cập nhật giao diện
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'Lỗi khi cập nhật quyền bộ môn!');
+    }
+  };
+
   const handleLogout = () => { logout(); navigate('/'); toast.info("Đã đăng xuất"); };
-  useEffect(() => {
-    // Đẩy trạng thái hiện tại vào history stack thêm một lần
-    window.history.pushState(null, document.title, window.location.href);
-
-    const handlePopState = (event) => {
-      // Khi user bấm back, lại tiếp tục đẩy trạng thái hiện tại lên để ghi đè
-      window.history.pushState(null, document.title, window.location.href);
-    };
-
-    window.addEventListener('popstate', handlePopState);
-
-    // Cleanup listener khi component unmount (ví dụ khi admin bấm Đăng xuất)
-    return () => {
-      window.removeEventListener('popstate', handlePopState);
-    };
-  }, []);
 
   return (
     <div className="flex min-h-screen bg-slate-50 text-slate-800 antialiased font-sans">
       <AdminSidebar 
         activeTab={activeTab} 
-        setActiveTab={setActiveTab} 
-        setSearchQuery={setSearchQuery} 
+        setActiveTab={handleTabChange} // Sử dụng hàm đã bọc để đổi URL
         handleLogout={handleLogout} 
       />
 
@@ -159,7 +154,18 @@ export const AdminDashboard = () => {
         <main className="p-8 flex-1">
           {activeTab === 'overview' && <OverviewTab stats={stats} chartData={chartData} />}
           {activeTab === 'users' && <UsersTab users={users} searchQuery={searchQuery} handleToggleStatus={handleToggleStatus} />}
-          {activeTab === 'teachers' && <TeachersTab teachers={teachers} searchQuery={searchQuery} handleApproveTeacher={handleApproveTeacher} handleToggleStatus={handleToggleStatus} />}
+          
+          {/* FIX LỖI: Đã truyền handleAssignSubjects xuống TeachersTab */}
+          {activeTab === 'teachers' && (
+            <TeachersTab 
+              teachers={teachers} 
+              searchQuery={searchQuery} 
+              handleApproveTeacher={handleApproveTeacher} 
+              handleToggleStatus={handleToggleStatus} 
+              handleAssignSubjects={handleAssignSubjects} 
+            />
+          )}
+
           {activeTab === 'feedbacks' && <FeedbacksTab feedbacks={feedbacks} handleUpdateFeedbackStatus={handleUpdateFeedbackStatus} />}
           {activeTab === 'courses' && <CoursesTab />}
           
@@ -168,7 +174,7 @@ export const AdminDashboard = () => {
             <div className="bg-white border border-slate-200 rounded-3xl p-16 text-center max-w-xl mx-auto mt-12 shadow-sm">
               <div className="w-16 h-16 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center mx-auto mb-4 border border-blue-100"><Clock size={28} /></div>
               <h2 className="text-xl font-bold text-slate-900 tracking-tight">Chức năng đang được xây dựng</h2>
-              <button onClick={() => setActiveTab('overview')} className="mt-6 bg-slate-900 hover:bg-slate-800 text-white font-semibold text-xs px-4 py-2.5 rounded-xl transition-all shadow-sm">Quay về trang tổng quan</button>
+              <button onClick={() => handleTabChange('overview')} className="mt-6 bg-slate-900 hover:bg-slate-800 text-white font-semibold text-xs px-4 py-2.5 rounded-xl transition-all shadow-sm">Quay về trang tổng quan</button>
             </div>
           )}
         </main>

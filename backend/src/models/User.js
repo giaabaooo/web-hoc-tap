@@ -26,7 +26,11 @@ const userSchema = new mongoose.Schema({
     default: function() {
       return this.role !== 'teacher'; 
     }
-  }
-}, { timestamps: true });
+  },
+  allowedSubjects: [{
+    type: String
+  }]
+},
+ { timestamps: true });
 
 export const User = mongoose.model('User', userSchema);
